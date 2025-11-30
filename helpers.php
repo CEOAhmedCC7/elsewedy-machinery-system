@@ -56,3 +56,15 @@ function current_user(): ?array
     }
     return $_SESSION['user'] ?? null;
 }
+
+function require_login(): array
+{
+    $user = current_user();
+
+    if (!$user) {
+        header('Location: login.php');
+        exit;
+    }
+
+    return $user;
+}
