@@ -12,6 +12,7 @@ $submitted = [
     'role' => $_POST['role'] ?? 'viewer',
     'status' => $_POST['status'] ?? 'active',
 ];
+$selectedIds = array_filter(array_map('trim', (array) ($_POST['selected_ids'] ?? [])));
 
 $allowedRoles = ['admin', 'project_manager', 'finance', 'viewer'];
 $allowedStatuses = ['active', 'inactive'];
@@ -115,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = 'No user found with that ID.';
                 }
             }
-        } elseif ($action === 'delete') {
+} elseif ($action === 'delete') {
             if ($submitted['user_id'] === '') {
                 $error = 'Please provide the User ID to delete.';
             } else {
@@ -135,6 +136,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ];
                 }
             }
+        } elseif ($action === 'bulk_delete') {
+            if (!$selectedIds) {
+                $error = 'Select at least one user to delete.';
+            } else {
+                $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+                $stmt = $pdo->prepare("DELETE FROM users WHERE user_id IN ({$placeholders})");
+                $stmt->execute($selectedIds);
+                $deleted = $stmt->rowCount();
+                $success = $deleted . ' user(s) removed.';
+            }
         }
     } catch (Throwable $e) {
         $error = format_db_error($e, 'users table');
@@ -142,6 +153,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $users = fetch_table('users', 'user_id');
+$userIdOptions = array_column($users, 'user_id');
+$usernameOptions = array_column($users, 'username');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -150,17 +163,22 @@ $users = fetch_table('users', 'user_id');
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Users | Elsewedy Machinery</title>
   <link rel="stylesheet" href="./assets/styles.css" />
+  <script src="./assets/app.js" defer></script>
 </head>
 <body class="page">
   <header class="navbar">
     <div class="header">
       <img src="../EM%20Logo.jpg" alt="Elsewedy Machinery" class="logo" />
-      <div class="title">Users</div>
     </div>
+    <div class="title">Users</div>
     <div class="links">
+      <div class="user-chip">
+        <span class="name"><?php echo safe($currentUser['username']); ?></span>
+        <span class="role"><?php echo strtoupper(safe($currentUser['role'])); ?></span>
+      </div>
       <a href="./users-list.php">Copy Users</a>
       <a href="./home.php">Home</a>
-      <a href="./logout.php">Logout</a>
+      <a class="logout-icon" href="./logout.php" aria-label="Logout">⎋</a>
     </div>
   </header>
   <main style="padding:24px; display:grid; gap:20px;">
@@ -178,19 +196,17 @@ $users = fetch_table('users', 'user_id');
 
       <form method="POST" action="users.php">
         <div class="form-row">
-          <div>
+     <div>
             <label class="label" for="user-id">User ID</label>
-            <input id="user-id" name="user_id" type="text" placeholder="USR-001" value="<?php echo safe($submitted['user_id']); ?>" />
-            <p class="helper-text">Leave blank to auto-generate when saving.</p>
+            <input id="user-id" name="user_id" type="text" list="user-id-options" placeholder="USR-001" value="<?php echo safe($submitted['user_id']); ?>" />
           </div>
           <div>
             <label class="label" for="username">Username</label>
-            <input id="username" name="username" type="text" placeholder="username" value="<?php echo safe($submitted['username']); ?>" />
+            <input id="username" name="username" type="text" list="username-options" placeholder="username" value="<?php echo safe($submitted['username']); ?>" />
           </div>
           <div>
             <label class="label" for="password">Password</label>
             <input id="password" name="password" type="password" placeholder="********" />
-            <p class="helper-text">Enter a new password to reset it.</p>
           </div>
         </div>
         <div class="form-row">
@@ -217,31 +233,58 @@ $users = fetch_table('users', 'user_id');
           <button class="btn btn-neutral" type="submit" name="action" value="update">Update</button>
           <button class="btn btn-delete" type="submit" name="action" value="delete" onclick="return confirm('Are you sure you want to delete this user?');">Delete</button>
         </div>
-      </form>
+       </form>
     </div>
-    
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr><th>ID</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th></tr>
-        </thead>
-        <tbody>
-          <?php if ($users): ?>
+
+    <form method="POST" action="users.php">
+      <div class="table-actions">
+        <div class="filters">
+          <label class="label" for="multi-user">Select Users</label>
+          <select id="multi-user" name="selected_ids[]" multiple size="3">
             <?php foreach ($users as $user): ?>
-              <tr>
-                <td><?php echo safe($user['user_id']); ?></td>
-                <td><?php echo safe($user['username']); ?></td>
-                <td><?php echo safe($user['role']); ?></td>
-                <td><?php echo safe($user['status']); ?></td>
-                <td><?php echo safe($user['created_at']); ?></td>
-              </tr>
+              <option value="<?php echo safe($user['user_id']); ?>"><?php echo safe($user['user_id'] . ' | ' . $user['username']); ?></option>
             <?php endforeach; ?>
-          <?php else: ?>
-            <tr><td colspan="5">No users recorded yet.</td></tr>
-          <?php endif; ?>
-        </tbody>
-      </table>
-    </div>
+          </select>
+        </div>
+        <div class="actions">
+          <button class="btn btn-delete" type="submit" name="action" value="bulk_delete" onclick="return confirm('Delete selected users?');">Delete Selected</button>
+          <button class="btn btn-neutral" type="button" onclick="exportSelected('users-table')">Download Excel</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table id="users-table">
+          <thead>
+            <tr><th><input type="checkbox" onclick="toggleAll(this, 'users-table')" aria-label="Select all users" /></th><th>ID</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th></tr>
+          </thead>
+          <tbody>
+            <?php if ($users): ?>
+              <?php foreach ($users as $user): ?>
+                <tr>
+                  <td><input type="checkbox" name="selected_ids[]" value="<?php echo safe($user['user_id']); ?>" /></td>
+                  <td><?php echo safe($user['user_id']); ?></td>
+                  <td><?php echo safe($user['username']); ?></td>
+                  <td><?php echo safe($user['role']); ?></td>
+                  <td><?php echo safe($user['status']); ?></td>
+                  <td><?php echo safe($user['created_at']); ?></td>
+                </tr>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <tr><td colspan="6">No users recorded yet.</td></tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+    </form>
+    <datalist id="user-id-options">
+      <?php foreach ($userIdOptions as $option): ?>
+        <option value="<?php echo safe($option); ?>"></option>
+      <?php endforeach; ?>
+    </datalist>
+    <datalist id="username-options">
+      <?php foreach ($usernameOptions as $option): ?>
+        <option value="<?php echo safe($option); ?>"></option>
+      <?php endforeach; ?>
+    </datalist>
   </main>
 </body>
 </html>
