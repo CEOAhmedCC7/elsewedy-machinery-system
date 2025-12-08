@@ -13,7 +13,7 @@ function get_db_config(): array
         'port' => getenv('DB_PORT') ?: '5432',
         // Defaults mirror the sample credentials shared during setup instructions
         // so local users can connect without setting environment variables.
-        'dbName' => getenv('DB_NAME') ?: 'elsewedy_machinery',
+        'dbName' => getenv('DB_NAME') ?: 'elsewedy_pmo_desk',
         'user' => getenv('DB_USER') ?: 'ahmedadmin',
         'password' => getenv('DB_PASSWORD') ?: 'AhmedAdmin123',
     ];

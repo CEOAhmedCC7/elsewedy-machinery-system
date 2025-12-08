@@ -5,14 +5,21 @@ $currentUser = require_login();
 $error = '';
 $success = '';
 
+$userIdPosted = trim($_POST['user_id'] ?? '');
+$userIdCustom = trim($_POST['user_id_custom'] ?? '');
+$usernamePosted = trim($_POST['username'] ?? '');
+$usernameCustom = trim($_POST['username_custom'] ?? '');
+
 $submitted = [
-    'user_id' => trim($_POST['user_id'] ?? ''),
-    'username' => trim($_POST['username'] ?? ''),
+    'user_id' => $userIdPosted === '__custom__' ? $userIdCustom : $userIdPosted,
+    'username' => $usernamePosted === '__custom__' ? $usernameCustom : $usernamePosted,
     'password' => (string) ($_POST['password'] ?? ''),
     'role' => $_POST['role'] ?? 'viewer',
     'status' => $_POST['status'] ?? 'active',
 ];
 $selectedIds = array_filter(array_map('trim', (array) ($_POST['selected_ids'] ?? [])));
+$filterIds = array_filter(array_map('trim', (array) ($_POST['filter_user_ids'] ?? [])));
+
 
 $allowedRoles = ['admin', 'project_manager', 'finance', 'viewer'];
 $allowedStatuses = ['active', 'inactive'];
@@ -23,7 +30,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         if ($action === 'create') {
-            if ($submitted['username'] === '' || $submitted['password'] === '') {
+            if ($usernamePosted === '__custom__' && $submitted['username'] === '') {
+                $error = 'Please enter a username for the new account.';
+            } elseif ($userIdPosted === '__custom__' && $submitted['user_id'] === '') {
+                $error = 'Please enter a custom User ID or choose Auto-generate.';
+            } elseif ($submitted['username'] === '' || $submitted['password'] === '') {
                 $error = 'Username and password are required to create a user.';
             } elseif (!in_array($submitted['role'], $allowedRoles, true) || !in_array($submitted['status'], $allowedStatuses, true)) {
                 $error = 'Please select a valid role and status.';
@@ -112,16 +123,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $submitted['status'] = $found['status'];
                     $submitted['password'] = '';
                     $success = 'User loaded. You can update or delete this account.';
-                } else {
+               } else {
                     $error = 'No user found with that ID.';
                 }
             }
-} elseif ($action === 'delete') {
-            if ($submitted['user_id'] === '') {
-                $error = 'Please provide the User ID to delete.';
-            } else {
-                $stmt = $pdo->prepare('DELETE FROM users WHERE user_id = :id');
-                $stmt->execute([':id' => $submitted['user_id']]);
+        } elseif ($action === 'delete') {
+            if ($submitted['user_id'] === '') { 
+                $error = 'Please provide the User ID to delete.'; 
+            } else { 
+                $stmt = $pdo->prepare('DELETE FROM users WHERE user_id = :id'); 
+                $stmt->execute([':id' => $submitted['user_id']]); 
 
                 if ($stmt->rowCount() === 0) {
                     $error = 'User not found or already deleted.';
@@ -137,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         } elseif ($action === 'bulk_delete') {
-            if (!$selectedIds) {
+          if (!$selectedIds) {
                 $error = 'Select at least one user to delete.';
             } else {
                 $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
@@ -146,6 +157,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $deleted = $stmt->rowCount();
                 $success = $deleted . ' user(s) removed.';
             }
+        } elseif ($action === 'filter') {
+            $success = $filterIds ? 'Showing the selected users.' : 'Showing all users.';
         }
     } catch (Throwable $e) {
         $error = format_db_error($e, 'users table');
@@ -154,7 +167,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $users = fetch_table('users', 'user_id');
 $userIdOptions = array_column($users, 'user_id');
-$usernameOptions = array_column($users, 'username');
+$usernameOptions = array_values(array_unique(array_column($users, 'username')));
+$visibleUsers = $filterIds ? array_values(array_filter($users, fn ($user) => in_array($user['user_id'], $filterIds, true))) : $users;
+$userIdSelectValue = $submitted['user_id'] === '' ? '' : (in_array($submitted['user_id'], $userIdOptions, true) ? $submitted['user_id'] : '__custom__');
+$usernameSelectValue = $submitted['username'] === '' ? '' : (in_array($submitted['username'], $usernameOptions, true) ? $submitted['username'] : '__custom__');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -166,7 +182,7 @@ $usernameOptions = array_column($users, 'username');
   <script src="./assets/app.js" defer></script>
 </head>
 <body class="page">
-  <header class="navbar">
+<header class="navbar">
     <div class="header">
       <img src="../EM%20Logo.jpg" alt="Elsewedy Machinery" class="logo" />
     </div>
@@ -178,31 +194,51 @@ $usernameOptions = array_column($users, 'username');
       </div>
       <a href="./users-list.php">Copy Users</a>
       <a href="./home.php">Home</a>
-      <a class="logout-icon" href="./logout.php" aria-label="Logout">⎋</a>
+      <a class="logout-icon" href="./logout.php" aria-label="Logout">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M15 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M10 12h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M16 8l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </a>
     </div>
   </header>
   <main style="padding:24px; display:grid; gap:20px;">
     <div class="form-container">
       <h3 style="margin-top:0; color:var(--secondary);">User Management</h3>
-      <?php if ($error): ?>
+   <?php if ($error): ?> 
+        <div class="alert" style="color: var(--secondary); margin-bottom:12px;"> 
+          <?php echo safe($error); ?> 
+        </div> 
+      <?php elseif ($success): ?> 
         <div class="alert" style="color: var(--secondary); margin-bottom:12px;">
-          <?php echo safe($error); ?>
-        </div>
-      <?php elseif ($success): ?>
-        <div class="alert" style="color: var(--primary); margin-bottom:12px;">
-          <?php echo safe($success); ?>
-        </div>
-      <?php endif; ?>
+          <?php echo safe($success); ?> 
+        </div> 
+      <?php endif; ?> 
 
-      <form method="POST" action="users.php">
+  <form method="POST" action="users.php">
         <div class="form-row">
      <div>
             <label class="label" for="user-id">User ID</label>
-            <input id="user-id" name="user_id" type="text" list="user-id-options" placeholder="USR-001" value="<?php echo safe($submitted['user_id']); ?>" />
+            <select id="user-id" name="user_id">
+              <option value="" <?php echo $userIdSelectValue === '' ? 'selected' : ''; ?>>Auto-generate</option>
+              <?php foreach ($userIdOptions as $option): ?>
+                <option value="<?php echo safe($option); ?>" <?php echo $userIdSelectValue === $option ? 'selected' : ''; ?>><?php echo safe($option); ?></option>
+              <?php endforeach; ?>
+              <option value="__custom__" <?php echo $userIdSelectValue === '__custom__' ? 'selected' : ''; ?>>Custom ID...</option>
+            </select>
+            <input id="user-id-custom" name="user_id_custom" type="text" class="<?php echo $userIdSelectValue === '__custom__' ? '' : 'hidden'; ?>" placeholder="Enter a new ID" value="<?php echo safe($userIdSelectValue === '__custom__' ? $submitted['user_id'] : ''); ?>" />
           </div>
           <div>
             <label class="label" for="username">Username</label>
-            <input id="username" name="username" type="text" list="username-options" placeholder="username" value="<?php echo safe($submitted['username']); ?>" />
+            <select id="username" name="username">
+              <option value="" <?php echo $usernameSelectValue === '' ? 'selected' : ''; ?>>Select an existing username</option>
+              <?php foreach ($usernameOptions as $option): ?>
+                <option value="<?php echo safe($option); ?>" <?php echo $usernameSelectValue === $option ? 'selected' : ''; ?>><?php echo safe($option); ?></option>
+              <?php endforeach; ?>
+              <option value="__custom__" <?php echo $usernameSelectValue === '__custom__' ? 'selected' : ''; ?>>Custom username...</option>
+            </select>
+            <input id="username-custom" name="username_custom" type="text" class="<?php echo $usernameSelectValue === '__custom__' ? '' : 'hidden'; ?>" placeholder="Type a new username" value="<?php echo safe($usernameSelectValue === '__custom__' ? $submitted['username'] : ''); ?>" />
           </div>
           <div>
             <label class="label" for="password">Password</label>
@@ -226,9 +262,9 @@ $usernameOptions = array_column($users, 'username');
               <?php endforeach; ?>
             </select>
           </div>
-        </div>
+       </div>
         <div class="actions">
-          <button class="btn btn-save" type="submit" name="action" value="create">Save User</button>
+          <button class="btn btn-save" type="submit" name="action" value="create">Create New User</button>
           <button class="btn btn-neutral" type="submit" name="action" value="view">View</button>
           <button class="btn btn-neutral" type="submit" name="action" value="update">Update</button>
           <button class="btn btn-delete" type="submit" name="action" value="delete" onclick="return confirm('Are you sure you want to delete this user?');">Delete</button>
@@ -240,13 +276,14 @@ $usernameOptions = array_column($users, 'username');
       <div class="table-actions">
         <div class="filters">
           <label class="label" for="multi-user">Select Users</label>
-          <select id="multi-user" name="selected_ids[]" multiple size="3">
+          <select id="multi-user" name="filter_user_ids[]" multiple size="4">
             <?php foreach ($users as $user): ?>
-              <option value="<?php echo safe($user['user_id']); ?>"><?php echo safe($user['user_id'] . ' | ' . $user['username']); ?></option>
+              <option value="<?php echo safe($user['user_id']); ?>" <?php echo in_array($user['user_id'], $filterIds, true) ? 'selected' : ''; ?>><?php echo safe($user['user_id'] . ' | ' . $user['username']); ?></option>
             <?php endforeach; ?>
           </select>
         </div>
         <div class="actions">
+          <button class="btn btn-neutral" type="submit" name="action" value="filter">View Selection</button>
           <button class="btn btn-delete" type="submit" name="action" value="bulk_delete" onclick="return confirm('Delete selected users?');">Delete Selected</button>
           <button class="btn btn-neutral" type="button" onclick="exportSelected('users-table')">Download Excel</button>
         </div>
@@ -257,8 +294,8 @@ $usernameOptions = array_column($users, 'username');
             <tr><th><input type="checkbox" onclick="toggleAll(this, 'users-table')" aria-label="Select all users" /></th><th>ID</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th></tr>
           </thead>
           <tbody>
-            <?php if ($users): ?>
-              <?php foreach ($users as $user): ?>
+            <?php if ($visibleUsers): ?>
+              <?php foreach ($visibleUsers as $user): ?>
                 <tr>
                   <td><input type="checkbox" name="selected_ids[]" value="<?php echo safe($user['user_id']); ?>" /></td>
                   <td><?php echo safe($user['user_id']); ?></td>
@@ -271,20 +308,25 @@ $usernameOptions = array_column($users, 'username');
             <?php else: ?>
               <tr><td colspan="6">No users recorded yet.</td></tr>
             <?php endif; ?>
-          </tbody>
+        </tbody>
         </table>
       </div>
+      <div class="selection-summary" id="selection-summary">
+        <div class="selection-summary__header">
+          <h4>Selected records</h4>
+          <p class="muted">Use the checkboxes to preview which users will be exported or deleted.</p>
+        </div>
+        <ul class="selection-summary__list"></ul>
+      </div>
     </form>
-    <datalist id="user-id-options">
-      <?php foreach ($userIdOptions as $option): ?>
-        <option value="<?php echo safe($option); ?>"></option>
-      <?php endforeach; ?>
-    </datalist>
-    <datalist id="username-options">
-      <?php foreach ($usernameOptions as $option): ?>
-        <option value="<?php echo safe($option); ?>"></option>
-      <?php endforeach; ?>
-    </datalist>
   </main>
 </body>
 </html>
+
+
+
+
+
+
+
+
