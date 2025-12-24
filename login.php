@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = $stmt->fetch();
 
             if (!$user) {
-                $error = 'Account not found. Please create an account or contact an administrator.';
+                $error = 'Account not found. Please contact an administrator to create an account.';
             } elseif ((int) $user['is_active'] !== 1) {
                 $error = 'This account is inactive. Please contact an administrator.';
             } else {
@@ -103,9 +103,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <form class="form-container" method="POST" action="login.php">
       <div class="form-row">
         <div>
-          <label class="label" for="username">Username</label>
-          <input id="username" name="username" type="text" placeholder="Enter your username" required />
-        </div>
+          <label class="label" for="email">Email</label>
+          <input id="email" name="email" type="email" placeholder="Enter your email" required />        </div>
         <div>
           <label class="label" for="password">Password</label>
           <input id="password" name="password" type="password" placeholder="Enter your password" required />
