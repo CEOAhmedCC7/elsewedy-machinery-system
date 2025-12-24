@@ -89,19 +89,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <link rel="stylesheet" href="./assets/styles.css" />
 </head>
 <body class="page login-page">
-  <div class="login-card">
-    <div class="logo-wrap">
-      <!-- <img src="../EM%20Logo.jpg" alt="Elsewedy Machinery" class="logo" /> -->
-    </div>
-    <h1>Welcome Back</h1>
-    <p class="helper-text"><em>Secure access for Elsewedy Machinery teams.</em></p>
-    <?php if ($error): ?>
-      <div class="alert" style="color: var(--secondary); text-align:center; margin-bottom:12px;">
-        <?php echo safe($error); ?>
+  <?php if ($error): ?>
+    <div class="error-modal is-visible" role="alertdialog" aria-live="assertive" aria-label="Login error">
+      <div class="error-dialog">
+        <div class="error-dialog__header">
+          <span class="error-title">Login issue</span>
+          <button class="error-close" type="button" aria-label="Close error">&times;</button>
+        </div>
+        <p class="error-message"><?php echo safe($error); ?></p>
       </div>
-    <?php endif; ?>
+    </div>
+  <?php endif; ?>
+
+  <div class="login-card">
     <form class="form-container" method="POST" action="login.php">
-     <div class="form-row">
+      <div class="form-row">
         <div>
           <label class="label" for="email">Email</label>
           <input id="email" name="email" type="email" placeholder="Enter your email" required />
@@ -111,10 +113,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <input id="password" name="password" type="password" placeholder="Enter your password" required />
         </div>
       </div>
-       <div class="actions" style="justify-content:space-between; align-items:center;">
+      <div class="actions" style="justify-content:space-between; align-items:center;">
         <button class="btn btn-save" type="submit">Login</button>
       </div>
     </form>
   </div>
+  <p class="secured-footnote">Secured by Elsewedy Machinery</p>
+
+  <script>
+    const closeButton = document.querySelector('.error-close');
+    const modal = document.querySelector('.error-modal');
+
+    if (closeButton && modal) {
+      closeButton.addEventListener('click', () => modal.classList.remove('is-visible'));
+    }
+  </script>
 </body>
 </html>
