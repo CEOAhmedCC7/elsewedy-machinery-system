@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body class="page login-page">
   <div class="login-card">
     <div class="logo-wrap">
-      <img src="../EM%20Logo.jpg" alt="Elsewedy Machinery" class="logo" />
+      <!-- <img src="../EM%20Logo.jpg" alt="Elsewedy Machinery" class="logo" /> -->
     </div>
     <h1>Welcome Back</h1>
     <p class="helper-text"><em>Secure access for Elsewedy Machinery teams.</em></p>
