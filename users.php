@@ -18,8 +18,6 @@ $submitted = [
     'status' => $_POST['status'] ?? 'active',
 ];
 $selectedIds = array_filter(array_map('trim', (array) ($_POST['selected_ids'] ?? [])));
-$filterIds = array_filter(array_map('trim', (array) ($_POST['filter_user_ids'] ?? [])));
-
 
 $allowedRoles = ['admin', 'project_manager', 'finance', 'viewer'];
 $allowedStatuses = ['active', 'inactive'];
@@ -157,9 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $deleted = $stmt->rowCount();
                 $success = $deleted . ' user(s) removed.';
             }
-        } elseif ($action === 'filter') {
-            $success = $filterIds ? 'Showing the selected users.' : 'Showing all users.';
-        }
+             }
     } catch (Throwable $e) {
         $error = format_db_error($e, 'users table');
     }
@@ -168,9 +164,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $users = fetch_table('users', 'user_id');
 $userIdOptions = array_column($users, 'user_id');
 $usernameOptions = array_values(array_unique(array_column($users, 'username')));
-$visibleUsers = $filterIds ? array_values(array_filter($users, fn ($user) => in_array($user['user_id'], $filterIds, true))) : $users;
 $userIdSelectValue = $submitted['user_id'] === '' ? '' : (in_array($submitted['user_id'], $userIdOptions, true) ? $submitted['user_id'] : '__custom__');
 $usernameSelectValue = $submitted['username'] === '' ? '' : (in_array($submitted['username'], $usernameOptions, true) ? $submitted['username'] : '__custom__');
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -274,16 +270,7 @@ $usernameSelectValue = $submitted['username'] === '' ? '' : (in_array($submitted
 
     <form method="POST" action="users.php">
       <div class="table-actions">
-        <div class="filters">
-          <label class="label" for="multi-user">Select Users</label>
-          <select id="multi-user" name="filter_user_ids[]" multiple size="4">
-            <?php foreach ($users as $user): ?>
-              <option value="<?php echo safe($user['user_id']); ?>" <?php echo in_array($user['user_id'], $filterIds, true) ? 'selected' : ''; ?>><?php echo safe($user['user_id'] . ' | ' . $user['username']); ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
         <div class="actions">
-          <button class="btn btn-neutral" type="submit" name="action" value="filter">View Selection</button>
           <button class="btn btn-delete" type="submit" name="action" value="bulk_delete" onclick="return confirm('Delete selected users?');">Delete Selected</button>
           <button class="btn btn-neutral" type="button" onclick="exportSelected('users-table')">Download Excel</button>
         </div>
@@ -294,8 +281,8 @@ $usernameSelectValue = $submitted['username'] === '' ? '' : (in_array($submitted
             <tr><th><input type="checkbox" onclick="toggleAll(this, 'users-table')" aria-label="Select all users" /></th><th>ID</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th></tr>
           </thead>
           <tbody>
-            <?php if ($visibleUsers): ?>
-              <?php foreach ($visibleUsers as $user): ?>
+             <?php if ($users): ?>
+              <?php foreach ($users as $user): ?>
                 <tr>
                   <td><input type="checkbox" name="selected_ids[]" value="<?php echo safe($user['user_id']); ?>" /></td>
                   <td><?php echo safe($user['user_id']); ?></td>
@@ -311,14 +298,7 @@ $usernameSelectValue = $submitted['username'] === '' ? '' : (in_array($submitted
         </tbody>
         </table>
       </div>
-      <div class="selection-summary" id="selection-summary">
-        <div class="selection-summary__header">
-          <h4>Selected records</h4>
-          <p class="muted">Use the checkboxes to preview which users will be exported or deleted.</p>
-        </div>
-        <ul class="selection-summary__list"></ul>
-      </div>
-    </form>
+      </form>
   </main>
 </body>
 </html>
