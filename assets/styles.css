@@ -122,12 +122,13 @@ img.logo {
 }
 
 input[type="text"],
+input[type="email"],
 input[type="password"],
 input[type="date"],
 input[type="number"],
 select, textarea {
   width: 100%;
-  padding: 12px;
+  padding: 14px;
   border-radius: var(--input-radius);
   border: 1.5px solid var(--secondary);
   background: #fff;
