@@ -6,15 +6,34 @@ declare(strict_types=1);
 require_once __DIR__ . '/config.php';
 
 const ALLOWED_TABLES = [
-    'projects',
-    'customers',
     'batches',
-    'sub_batch_details',
+    'budget_update_requests',
     'budgets',
-    'payments',
+    'business_lines',
+    'cash_in',
+    'cash_out',
+    'collection_targets',
+    'customers',
+    'hot_deals',
     'invoices',
+    'leads_tracking',
+    'lost_deals',
+    'modules',
+    'opportunity_owners',
+    'products',
+    'projects',
+    'revenue_targets',
+    'role_module_permissions',
+    'roles',
+    'sales',
+    'sales_targets',
+    'sleeping_opportunities',
+    'sub_batch_details',
+    'suppliers',
+    'user_roles',
     'users',
 ];
+
 
 function fetch_table(string $table, string $orderBy = ''): array
 {
@@ -22,11 +41,16 @@ function fetch_table(string $table, string $orderBy = ''): array
         return [];
     }
 
-    $pdo = get_pdo();
+     $pdo = get_pdo();
     $orderSql = $orderBy !== '' ? " ORDER BY {$orderBy}" : '';
-    $stmt = $pdo->query("SELECT * FROM {$table}{$orderSql}");
 
-    return $stmt->fetchAll();
+    try {
+        $stmt = $pdo->query("SELECT * FROM {$table}{$orderSql}");
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        error_log(sprintf('Failed to fetch table %s: %s', $table, $e->getMessage()));
+        return [];
+    }
 }
 
 function to_options(array $rows, string $valueKey, string $labelKey): array

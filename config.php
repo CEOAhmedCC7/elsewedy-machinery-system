@@ -8,6 +8,28 @@ declare(strict_types=1);
  */
 function get_db_config(): array
 {
+    $databaseUrl = getenv('DATABASE_URL');
+
+    if ($databaseUrl !== false) {
+        $parts = parse_url($databaseUrl);
+
+        if ($parts === false || !isset($parts['host'], $parts['path'])) {
+            throw new RuntimeException('Invalid DATABASE_URL format. Expected postgres://user:pass@host:port/dbname');
+        }
+
+        $queryParams = [];
+        parse_str($parts['query'] ?? '', $queryParams);
+
+        return [
+            'host' => $parts['host'],
+            'port' => $parts['port'] ?? '5432',
+            'dbName' => ltrim($parts['path'], '/'),
+            'user' => $parts['user'] ?? '',
+            'password' => $parts['pass'] ?? '',
+            'sslmode' => $queryParams['sslmode'] ?? null,
+        ];
+    }
+
     return [
         'host' => getenv('DB_HOST') ?: 'localhost',
         'port' => getenv('DB_PORT') ?: '5432',
@@ -16,6 +38,7 @@ function get_db_config(): array
         'dbName' => getenv('DB_NAME') ?: 'elsewedy_machinery',
         'user' => getenv('DB_USER') ?: 'ahmedadmin',
         'password' => getenv('DB_PASSWORD') ?: 'AhmedAdmin123',
+        'sslmode' => getenv('DB_SSLMODE') ?: null,
     ];
 }
 
@@ -31,8 +54,15 @@ function get_pdo(): PDO
         throw new RuntimeException('PostgreSQL PDO driver (pdo_pgsql) is not enabled in PHP.');
     }
 
-    $config = get_db_config();
+     $config = get_db_config();
+    if ($config['host'] === '' || $config['dbName'] === '') {
+        throw new RuntimeException('Database configuration is incomplete: host and dbName are required.');
+    }
     $dsn = sprintf('pgsql:host=%s;port=%s;dbname=%s', $config['host'], $config['port'], $config['dbName']);
+
+    if (!empty($config['sslmode'])) {
+        $dsn .= ';sslmode=' . $config['sslmode'];
+    }
 
     try {
         $pdo = new PDO($dsn, $config['user'], $config['password'], [

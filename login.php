@@ -13,69 +13,70 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && isset($_SESSION['user'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
+    $email = trim($_POST['email'] ?? '');
     $password = trim($_POST['password'] ?? '');
 
- if ($username !== '' && $password !== '') {
+    if ($email !== '' && $password !== '') {
         try {
             $pdo = get_pdo();
             $stmt = $pdo->prepare(
-                'SELECT u.user_id, u.username, u.password_hash, u.is_active, COALESCE(r.role_name, \'viewer\') AS role_name
+                'SELECT u.user_id, u.full_name, u.email, u.password_hash, u.is_active, r.role_name
                  FROM users u
                  LEFT JOIN user_roles ur ON ur.user_id = u.user_id
                  LEFT JOIN roles r ON r.role_id = ur.role_id
-                 WHERE u.username = :username
+                 WHERE u.email = :email
                  LIMIT 1'
             );
-            $stmt->execute([':username' => $username]);
+            $stmt->execute([':email' => $email]);
             $user = $stmt->fetch();
 
             if (!$user) {
-                $error = 'User not found. Use the Username shown in the Users module (not email).';
+                $error = 'Account not found. Please create an account or contact an administrator.';
+            } elseif ((int) $user['is_active'] !== 1) {
+                $error = 'This account is inactive. Please contact an administrator.';
             } else {
-                $isActive = filter_var($user['is_active'], FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
-                if ($isActive !== true) {
-                    $error = 'This account is inactive. Please contact an administrator.';
-                } else {
-                    $storedHash = (string) $user['password_hash'];
+                $storedHash = (string) $user['password_hash'];
 
-                    $passwordMatches = password_verify($password, $storedHash);
-                    $passwordWasPlaintext = false;
+                $passwordMatches = password_verify($password, $storedHash);
+                $passwordWasPlaintext = false;
 
-                    if (!$passwordMatches) {
-                        $hashInfo = password_get_info($storedHash);
-                        $looksPlaintext = $hashInfo['algo'] === 0;
+                if (!$passwordMatches) {
+                    $hashInfo = password_get_info($storedHash);
+                    $looksPlaintext = $hashInfo['algo'] === 0;
 
-                        if ($looksPlaintext && hash_equals($storedHash, $password)) {
-                            $passwordMatches = true;
-                            $passwordWasPlaintext = true;
-                        }
+                    if ($looksPlaintext && hash_equals($storedHash, $password)) {
+                        $passwordMatches = true;
+                        $passwordWasPlaintext = true;
                     }
-
-                    if ($passwordMatches) {
-                        if ($passwordWasPlaintext || password_needs_rehash($storedHash, PASSWORD_DEFAULT)) {
-                            $newHash = password_hash($password, PASSWORD_DEFAULT);
-                            $update = $pdo->prepare('UPDATE users SET password_hash = :hash WHERE user_id = :id');
-                            $update->execute([':hash' => $newHash, ':id' => $user['user_id']]);
-                        }
-
-                        $_SESSION['user'] = [
-                            'user_id' => $user['user_id'],
-                            'username' => $user['username'],
-                            'role' => $user['role_name'],
-                        ];
-                        header('Location: home.php');
-                        exit;
-                    }
-
-                    $error = 'Invalid password. Double-check your Username and password and try again.';
                 }
+
+                if ($passwordMatches) {
+                    if ($passwordWasPlaintext || password_needs_rehash($storedHash, PASSWORD_DEFAULT)) {
+                        $newHash = password_hash($password, PASSWORD_DEFAULT);
+                        $update = $pdo->prepare('UPDATE users SET password_hash = :hash WHERE user_id = :id');
+                        $update->execute([':hash' => $newHash, ':id' => $user['user_id']]);
+                    }
+
+                    $roleName = $user['role_name'] ?? 'user';
+                    $displayName = $user['full_name'] ?: $user['email'];
+
+                    $_SESSION['user'] = [
+                        'user_id' => $user['user_id'],
+                        'username' => $displayName,
+                        'email' => $user['email'],
+                        'role' => $roleName,
+                    ];
+                    header('Location: home.php');
+                    exit;
+                }
+
+                $error = 'Invalid password. Double-check your email and password and try again.';
             }
         } catch (Throwable $e) {
-            $error = format_db_error($e, 'users table');
+            $error = format_db_error($e, 'users, user_roles, and roles tables');
         }
     } else {
-        $error = 'Please provide both username and password.';
+        $error = 'Please provide both email and password.';
     }
 }
 ?>
