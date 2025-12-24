@@ -118,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
     </form>
   </div>
-  <!-- <p class="secured-footnote">Secured by Elsewedy Machinery</p> -->
+  <p class="secured-footnote">Secured by <b> PMO Team </b> </p>
 
   <script>
     const closeButton = document.querySelector('.error-close');
