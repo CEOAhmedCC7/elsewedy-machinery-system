@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="form-row">
         <div>
           <label class="label" for="email">Email</label>
-          <input id="email" name="email" type="email" placeholder="Enter your email" required />        </div>
+          <input id="email" name="email" type="email" placeholder="Enter your email" required />
         <div>
           <label class="label" for="password">Password</label>
           <input id="password" name="password" type="password" placeholder="Enter your password" required />
