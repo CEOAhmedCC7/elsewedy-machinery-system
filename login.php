@@ -40,28 +40,9 @@ if (!$user) {
                 if ($isActive !== true) {
                     $error = 'This account is inactive. Please contact an administrator.';
                 } else {
-                    $storedHash = (string) $user['password_hash'];
+                     $storedPassword = (string) $user['password_hash'];
 
-                    $passwordMatches = password_verify($password, $storedHash);
-                    $passwordWasPlaintext = false;
-
-                    if (!$passwordMatches) {
-                        $hashInfo = password_get_info($storedHash);
-                        $looksPlaintext = $hashInfo['algo'] === 0;
-
-                        if ($looksPlaintext && hash_equals($storedHash, $password)) {
-                            $passwordMatches = true;
-                            $passwordWasPlaintext = true;
-                        }
-                    }
-
-                    if ($passwordMatches) {
-                        if ($passwordWasPlaintext || password_needs_rehash($storedHash, PASSWORD_DEFAULT)) {
-                            $newHash = password_hash($password, PASSWORD_DEFAULT);
-                            $update = $pdo->prepare('UPDATE users SET password_hash = :hash WHERE user_id = :id');
-                            $update->execute([':hash' => $newHash, ':id' => $user['user_id']]);
-                        }
-
+                    if (hash_equals($storedPassword, $password)) {
                         $roleName = $user['role_name'] ?? 'user';
                         $displayName = $user['full_name'] ?: $user['email'];
 
