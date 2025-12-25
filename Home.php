@@ -4,25 +4,24 @@ $user = require_login();
 
 $role = $user['role'] ?? '';
 
-$modules = [
-    [
-        'roles' => ['admin'],
-        'href' => './role-access.php',
-        'title' => 'Role Management',
-        'description' => 'Manage roles and permissions for module access.',
-    ],
-    [
-        'roles' => ['admin'],
-        'href' => './users.php',
-        'title' => 'User Management',
-        'description' => 'CRUD users, assign roles, and control account status.',
-    ],
-];
+$modules = fetch_table('modules', 'module_name');
 
-
-$visibleModules = array_filter($modules, function ($module) use ($role) {
-    return in_array($role, $module['roles'], true);
-});
+if (!$modules) {
+    $modules = [
+        [
+            'module_code' => 'ROLE',
+            'module_name' => 'Role Management',
+            'href' => './role-access.php',
+            'description' => 'Manage roles and permissions for module access.',
+        ],
+        [
+            'module_code' => 'USER',
+            'module_name' => 'User Management',
+            'href' => './users.php',
+            'description' => 'CRUD users, assign roles, and control account status.',
+        ],
+    ];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -52,14 +51,37 @@ $visibleModules = array_filter($modules, function ($module) use ($role) {
       </a>
     </div>
   </header>
-  <main class="home-grid">
-    <section id="modules">
-      <?php foreach ($visibleModules as $module): ?>
-        <a class="card" href="<?php echo safe($module['href']); ?>">
-          <div class="card-title"><?php echo safe($module['title']); ?></div>
-          <p><?php echo safe($module['description']); ?></p>
-        </a>
-      <?php endforeach; ?>
+  <main style="padding:24px;">
+    <section class="form-container">
+      <h3 style="margin-top:0; color:var(--secondary);">Modules</h3>
+      <p class="muted">The table lists the modules available on the system home page.</p>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr><th>Code</th><th>Module</th><th>Description</th><th>Link</th></tr>
+          </thead>
+          <tbody>
+            <?php if ($modules): ?>
+              <?php foreach ($modules as $module): ?>
+                <tr>
+                  <td><?php echo safe($module['module_code'] ?? ''); ?></td>
+                  <td><?php echo safe($module['module_name']); ?></td>
+                  <td><?php echo safe($module['description'] ?? ($module['module_name'] . ' module')); ?></td>
+                  <td>
+                    <?php if (!empty($module['href'])): ?>
+                      <a href="<?php echo safe($module['href']); ?>" class="btn btn-neutral">Open</a>
+                    <?php else: ?>
+                      <span class="muted">No link</span>
+                    <?php endif; ?>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <tr><td colspan="4">No modules configured.</td></tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
     </section>
   </main>
   </body>
