@@ -7,57 +7,15 @@ $role = $user['role'] ?? '';
 $modules = [
     [
         'roles' => ['admin'],
-        'href' => './users.php',
-        'title' => 'User Management',
-        'description' => 'Admin-only user provisioning',
-    ],
-    [
-        'roles' => ['admin', 'finance', 'project_manager'],
-        'href' => './projects.php',
-        'title' => 'Projects',
-        'description' => 'Create and track projects',
-    ],
-    [
-        'roles' => ['admin', 'finance', 'project_manager', 'logistics', 'procurement'],
-        'href' => './budgets.php',
-        'title' => 'Budgets',
-        'description' => 'Project / sub-batch budgets',
-    ],
-    [
-        'roles' => ['admin', 'finance'],
-        'href' => './payments.php',
-        'title' => 'Payments',
-        'description' => 'Outgoing payment tracking',
-    ],
-    [
-        'roles' => ['admin', 'finance', 'project_manager', 'customer_support'],
-        'href' => './invoices.php',
-        'title' => 'Invoices',
-        'description' => 'Project-linked invoices',
-    ],
-    [
-        'roles' => ['admin', 'project_manager', 'customer_support'],
-        'href' => './customers.php',
-        'title' => 'Customers',
-        'description' => 'Customer records',
-    ],
-    [
-        'roles' => ['admin', 'procurement'],
-        'href' => './suppliers.php',
-        'title' => 'Suppliers',
-        'description' => 'Procurement partners',
-    ],
-    [
-        'roles' => ['admin', 'finance', 'project_manager'],
-        'href' => './budget-requests.php',
-        'title' => 'Budget Update Requests',
-        'description' => 'Track scope change approvals',
+        'href' => './role-access.php',
+        'title' => 'Role Management',
+        'description' => 'Manage roles and permissions for module access.',
     ],
     [
         'roles' => ['admin'],
-        'href' => './role-access.php',
-        'title' => 'Role Access',
-        'description' => 'Configure module access per role',
+        'href' => './users.php',
+        'title' => 'User Management',
+        'description' => 'CRUD users, assign roles, and control account status.',
     ],
 ];
 
