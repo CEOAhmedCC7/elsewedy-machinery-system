@@ -34,6 +34,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $success = 'Role created successfully.';
                 }
             }
+        } elseif ($action === 'update_role') {
+            $roleId = (int) ($_POST['role_id'] ?? 0);
+            $description = trim($_POST['description'] ?? '');
+            $isActive = isset($_POST['is_active']);
+
+            if ($roleId === 0) {
+                $error = 'A valid role is required to update it.';
+            } else {
+                $update = $pdo->prepare('UPDATE roles SET description = :description, is_active = :active WHERE role_id = :id');
+                $update->execute([
+                    ':description' => $description,
+                    ':active' => $isActive ? 'true' : 'false',
+                    ':id' => $roleId,
+                ]);
+                $success = 'Role updated successfully.';
+            }
         } elseif ($action === 'update_roles') {
             $roleUpdates = (array) ($_POST['roles'] ?? []);
 
@@ -48,6 +64,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $success = 'Roles updated successfully.';
+        } elseif ($action === 'delete_role') {
+            $roleId = (int) ($_POST['role_id'] ?? 0);
+
+            if ($roleId === 0) {
+                $error = 'A valid role is required to delete it.';
+            } else {
+                $pdo->beginTransaction();
+
+                $pdo->prepare('DELETE FROM role_module_permissions WHERE role_id = :role_id')->execute([':role_id' => $roleId]);
+                $pdo->prepare('DELETE FROM user_roles WHERE role_id = :role_id')->execute([':role_id' => $roleId]);
+                $pdo->prepare('DELETE FROM roles WHERE role_id = :role_id')->execute([':role_id' => $roleId]);
+
+                $pdo->commit();
+                $success = 'Role deleted successfully.';
+            }
         } elseif ($action === 'save_permissions') {
             $permissionsInput = (array) ($_POST['permissions'] ?? []);
 
