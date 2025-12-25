@@ -8,7 +8,7 @@ if (session_status() === PHP_SESSION_NONE) {
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' && isset($_SESSION['user'])) {
-    header('Location: home.php');
+    header('Location: Home.php');
     exit;
 }
 
@@ -30,47 +30,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([':email' => $email]);
             $user = $stmt->fetch();
 
-            if (!$user) {
+if (!$user) {
                 $error = 'Account not found. Please contact an administrator to create an account.';
-            } elseif ((int) $user['is_active'] !== 1) {
-                $error = 'This account is inactive. Please contact an administrator.';
             } else {
-                $storedHash = (string) $user['password_hash'];
+                // PostgreSQL booleans come back as 't'/'f' strings by default, so
+                // normalize to a real boolean before checking the account status.
+                $isActive = filter_var($user['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
 
-                $passwordMatches = password_verify($password, $storedHash);
-                $passwordWasPlaintext = false;
+                if ($isActive !== true) {
+                    $error = 'This account is inactive. Please contact an administrator.';
+                } else {
+                    $storedHash = (string) $user['password_hash'];
 
-                if (!$passwordMatches) {
-                    $hashInfo = password_get_info($storedHash);
-                    $looksPlaintext = $hashInfo['algo'] === 0;
+                    $passwordMatches = password_verify($password, $storedHash);
+                    $passwordWasPlaintext = false;
 
-                    if ($looksPlaintext && hash_equals($storedHash, $password)) {
-                        $passwordMatches = true;
-                        $passwordWasPlaintext = true;
+                    if (!$passwordMatches) {
+                        $hashInfo = password_get_info($storedHash);
+                        $looksPlaintext = $hashInfo['algo'] === 0;
+
+                        if ($looksPlaintext && hash_equals($storedHash, $password)) {
+                            $passwordMatches = true;
+                            $passwordWasPlaintext = true;
+                        }
                     }
-                }
 
-                if ($passwordMatches) {
-                    if ($passwordWasPlaintext || password_needs_rehash($storedHash, PASSWORD_DEFAULT)) {
-                        $newHash = password_hash($password, PASSWORD_DEFAULT);
-                        $update = $pdo->prepare('UPDATE users SET password_hash = :hash WHERE user_id = :id');
-                        $update->execute([':hash' => $newHash, ':id' => $user['user_id']]);
+                    if ($passwordMatches) {
+                        if ($passwordWasPlaintext || password_needs_rehash($storedHash, PASSWORD_DEFAULT)) {
+                            $newHash = password_hash($password, PASSWORD_DEFAULT);
+                            $update = $pdo->prepare('UPDATE users SET password_hash = :hash WHERE user_id = :id');
+                            $update->execute([':hash' => $newHash, ':id' => $user['user_id']]);
+                        }
+
+                        $roleName = $user['role_name'] ?? 'user';
+                        $displayName = $user['full_name'] ?: $user['email'];
+
+                        $_SESSION['user'] = [
+                            'user_id' => $user['user_id'],
+                            'username' => $displayName,
+                            'email' => $user['email'],
+                            'role' => $roleName,
+                        ];
+                        header('Location: Home.php');
+                        exit;
                     }
 
-                    $roleName = $user['role_name'] ?? 'user';
-                    $displayName = $user['full_name'] ?: $user['email'];
-
-                    $_SESSION['user'] = [
-                        'user_id' => $user['user_id'],
-                        'username' => $displayName,
-                        'email' => $user['email'],
-                        'role' => $roleName,
-                    ];
-                    header('Location: home.php');
-                    exit;
+                    $error = 'Invalid password. Double-check your email and password and try again.';
                 }
-
-                $error = 'Invalid password. Double-check your email and password and try again.';
             }
         } catch (Throwable $e) {
             $error = format_db_error($e, 'users, user_roles, and roles tables');
