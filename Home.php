@@ -1,10 +1,32 @@
 <?php
 require_once __DIR__ . '/helpers.php';
+
 $user = require_login();
 
-$role = $user['role'] ?? '';
-
 $modules = fetch_table('modules', 'module_name');
+$modulePermissions = [];
+
+if (!empty($user['user_id'])) {
+    try {
+        $pdo = get_pdo();
+        $stmt = $pdo->prepare(
+            'SELECT rp.module_id, rp.can_read
+             FROM role_module_permissions rp
+             INNER JOIN user_roles ur ON ur.role_id = rp.role_id
+             WHERE ur.user_id = :user_id'
+        );
+        $stmt->execute([':user_id' => $user['user_id']]);
+
+        foreach ($stmt->fetchAll() as $row) {
+            $moduleId = (int) $row['module_id'];
+            $modulePermissions[$moduleId] = [
+                'read' => filter_var($row['can_read'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
+            ];
+        }
+    } catch (Throwable $e) {
+        error_log('Failed to load role permissions: ' . $e->getMessage());
+    }
+}
 
 if (!$modules) {
     $modules = [
@@ -32,7 +54,7 @@ if (!$modules) {
   <link rel="stylesheet" href="./assets/styles.css" />
 </head>
 <body class="page">
- <header class="navbar">
+  <header class="navbar">
     <div class="header">
       <img src="../EM%20Logo.jpg" alt="Elsewedy Machinery" class="logo" />
     </div>
@@ -40,7 +62,7 @@ if (!$modules) {
     <div class="links">
       <div class="user-chip">
         <span class="name"><?php echo safe($user['username']); ?></span>
-        <span class="role"><?php echo strtoupper(safe($user['role'])); ?></span>
+        <span class="role"><?php echo strtoupper(safe($user['role'] ?? '')); ?></span>
       </div>
       <a class="logout-icon" href="./logout.php" aria-label="Logout">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -51,36 +73,57 @@ if (!$modules) {
       </a>
     </div>
   </header>
-  <main style="padding:24px;">
+  <main class="content">
     <section class="form-container">
-      <h3 style="margin-top:0; color:var(--secondary);">Modules</h3>
-      <p class="muted">The table lists the modules available on the system home page.</p>
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr><th>Code</th><th>Module</th><th>Description</th><th>Link</th></tr>
-          </thead>
-          <tbody>
-            <?php if ($modules): ?>
-              <?php foreach ($modules as $module): ?>
-                <tr>
-                  <td><?php echo safe($module['module_code'] ?? ''); ?></td>
-                  <td><?php echo safe($module['module_name']); ?></td>
-                  <td><?php echo safe($module['description'] ?? ($module['module_name'] . ' module')); ?></td>
-                  <td>
-                    <?php if (!empty($module['href'])): ?>
-                      <a href="<?php echo safe($module['href']); ?>" class="btn btn-neutral">Open</a>
-                    <?php else: ?>
-                      <span class="muted">No link</span>
-                    <?php endif; ?>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
+      <div class="section-header">
+        <div>
+          <h3 style="margin:0; color:var(--secondary);">Modules</h3>
+          <p class="muted">Select a module to get started. Modules you cannot access are disabled.</p>
+        </div>
+      </div>
+
+      <div class="module-grid">
+        <?php if ($modules): ?>
+          <?php foreach ($modules as $module): ?>
+            <?php
+              $moduleId = isset($module['module_id']) ? (int) $module['module_id'] : null;
+              $hasPermissionMap = !empty($modulePermissions);
+              $canAccess = !$hasPermissionMap || ($moduleId !== null && !empty($modulePermissions[$moduleId]['read']) && $modulePermissions[$moduleId]['read']);
+              $moduleLink = trim($module['href'] ?? '');
+              $imageSrc = $module['img'] ?? './assets/Wallpaper.png';
+              $description = $module['description'] ?? (($module['module_name'] ?? 'Module') . ' module');
+              $cardClasses = 'module-card' . ($canAccess && $moduleLink !== '' ? ' module-card--link' : '') . (!$canAccess ? ' module-card--disabled' : '');
+            ?>
+
+            <?php if ($canAccess && $moduleLink !== ''): ?>
+              <a class="<?php echo safe($cardClasses); ?>" href="<?php echo safe($moduleLink); ?>">
+                <div class="module-card__image">
+                  <img src="<?php echo safe($imageSrc); ?>" alt="<?php echo safe($module['module_name'] ?? 'Module'); ?>" />
+                </div>
+                <div class="module-card__body">
+                  <h4><?php echo safe($module['module_name']); ?></h4>
+                  <p><small><em><?php echo safe($description); ?></em></small></p>
+                </div>
+              </a>
             <?php else: ?>
-              <tr><td colspan="4">No modules configured.</td></tr>
+              <div class="<?php echo safe($cardClasses); ?>" aria-disabled="true">
+                <div class="module-card__image">
+                  <img src="<?php echo safe($imageSrc); ?>" alt="<?php echo safe($module['module_name'] ?? 'Module'); ?>" />
+                  <div class="module-card__status">No access</div>
+                </div>
+                <div class="module-card__body">
+                  <h4><?php echo safe($module['module_name']); ?></h4>
+                  <p><small><em><?php echo safe($description); ?></em></small></p>
+                  <?php if ($moduleLink === ''): ?>
+                    <span class="muted">No link configured</span>
+                  <?php endif; ?>
+                </div>
+              </div>
             <?php endif; ?>
-          </tbody>
-        </table>
+          <?php endforeach; ?>
+        <?php else: ?>
+          <p>No modules configured.</p>
+        <?php endif; ?>
       </div>
     </section>
   </main>
