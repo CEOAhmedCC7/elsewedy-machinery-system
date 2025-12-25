@@ -107,6 +107,24 @@ img.logo {
   box-shadow: var(--shadow);
 }
 
+.section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.muted {
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+.stacked {
+  display: grid;
+  gap: 16px;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -192,6 +210,13 @@ table th, table td {
   padding: 12px 14px;
   text-align: left;
   border-bottom: 1px solid #ececec;
+}
+
+.role-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .status-pill {
