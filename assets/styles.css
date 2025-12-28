@@ -349,15 +349,25 @@ table th, table td {
 
 .module-card__image {
   position: relative;
-  width: 100%;
-  aspect-ratio: 1 / 1;
+  flex: 0 0 150px;
+  width: 150px;
+  height: 150px;
+  margin: 12px auto 0;
   background: #f2f2f2;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
 }
 
 .module-card__image img {
+  max-width: 100%;
+  max-height: 100%;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 
