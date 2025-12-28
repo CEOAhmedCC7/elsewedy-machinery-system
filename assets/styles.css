@@ -340,7 +340,6 @@ table th, table td {
   flex-direction: column;
   align-items: center;
   transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
-  border: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 .module-card--link:hover {
@@ -350,42 +349,38 @@ table th, table td {
 
 .module-card__image {
   position: relative;
-  flex: 0 0 150px;
-  width: 150px;
-  height: 150px;
-  max-width: 150px;
-  max-height: 150px;
-  align-self: center;
-  margin: 12px auto 0;
-  background: #f2f2f2;
-  border-radius: 12px;
+  width: 100%;
+  height: 200px;
+  align-self: stretch;
+  margin: 0;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px;
 }
 
 .module-card__image img {
-  width: auto;
-  height: auto;
-  max-width: 130px;
-  max-height: 130px;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   display: block;
 }
 
 .module-card__status {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
-  padding: 6px 10px;
+  bottom: 12px;
+  right: 12px;
+  padding: 7px 12px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.68);
   color: #fff;
   font-weight: 700;
   font-size: 12px;
   letter-spacing: 0.3px;
+}
+
+.module-card__status--allowed {
+  background: var(--accent-success);
+}
+
+.module-card__status--blocked {
+  background: var(--secondary);
 }
 
 .module-card__body {
@@ -405,9 +400,19 @@ table th, table td {
   color: var(--text);
 }
 
+.module-card__access-label {
+  font-size: 13px;
+  color: var(--accent-success);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.module-card--disabled .module-card__access-label {
+  color: var(--secondary);
+}
+
 .module-card--disabled {
-  filter: grayscale(100%);
-  opacity: 0.75;
   pointer-events: none;
 }
 
