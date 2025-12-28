@@ -1,20 +1,40 @@
 <?php
 require_once __DIR__ . '/helpers.php';
 
+function normalize_module_image_path(string $path): string
+{
+    $path = trim($path);
+
+    if ($path === '') {
+        return '';
+    }
+
+    if (strpos($path, '://') !== false || strpos($path, 'assets/') === 0 || strpos($path, '/') === 0) {
+        return $path;
+    }
+
+    return 'assets/uploads/modules/' . $path;
+}
+
 $user = require_login();
 
 $pdo = null;
 $error = '';
 $success = '';
 
+$uploadDir = __DIR__ . '/assets/uploads/modules';
+if (!is_dir($uploadDir)) {
+    mkdir($uploadDir, 0755, true);
+}
+
 $formData = [
     'module_id' => '',
     'module_code' => '',
     'module_name' => '',
     'img' => '',
+    'current_img' => '',
     'link' => '',
 ];
-
 try {
     $pdo = get_pdo();
 } catch (Throwable $e) {
@@ -29,11 +49,12 @@ if ($pdo && $requestedModuleId) {
     $found = $stmt->fetch();
 
     if ($found) {
-        $formData = [
+       $formData = [
             'module_id' => (string) $found['module_id'],
             'module_code' => (string) $found['module_code'],
             'module_name' => (string) $found['module_name'],
-            'img' => (string) $found['img'],
+            'img' => normalize_module_image_path((string) $found['img']),
+            'current_img' => normalize_module_image_path((string) $found['img']),
             'link' => (string) $found['link'],
         ];
     }
@@ -45,11 +66,46 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
         'module_id' => trim((string) ($_POST['module_id'] ?? '')),
         'module_code' => trim((string) ($_POST['module_code'] ?? '')),
         'module_name' => trim((string) ($_POST['module_name'] ?? '')),
-        'img' => trim((string) ($_POST['img'] ?? '')),
+        'img' => '',
+        'current_img' => normalize_module_image_path(trim((string) ($_POST['current_img'] ?? ''))),
         'link' => trim((string) ($_POST['link'] ?? '')),
     ];
 
     $moduleId = $formData['module_id'] !== '' ? (int) $formData['module_id'] : null;
+
+    $upload = $_FILES['img_file'] ?? null;
+    if ($upload && ($upload['error'] === UPLOAD_ERR_OK || $upload['error'] === UPLOAD_ERR_NO_FILE)) {
+        if ($upload['error'] === UPLOAD_ERR_OK) {
+            $originalName = basename((string) $upload['name']);
+            $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+
+            if (!in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'], true)) {
+                throw new RuntimeException('Please upload a valid image file (jpg, jpeg, png, gif, webp, bmp).');
+            }
+
+            $baseName = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string) pathinfo($originalName, PATHINFO_FILENAME));
+            $baseName = $baseName !== '' ? $baseName : 'module_image';
+            $fileName = $baseName . '.' . $extension;
+            $targetPath = $uploadDir . '/' . $fileName;
+
+            $counter = 1;
+            while (file_exists($targetPath)) {
+                $fileName = $baseName . '_' . $counter . '.' . $extension;
+                $targetPath = $uploadDir . '/' . $fileName;
+                $counter++;
+            }
+
+            if (!move_uploaded_file($upload['tmp_name'], $targetPath)) {
+                throw new RuntimeException('Unable to save the uploaded image.');
+            }
+
+            $formData['img'] = 'assets/uploads/modules/' . $fileName;
+        } else {
+            $formData['img'] = $formData['current_img'];
+        }
+    } else {
+        throw new RuntimeException('Error uploading image.');
+    }
 
     try {
         if ($action === 'create') {
@@ -82,10 +138,11 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $success = 'Module created successfully.';
             $formData = [
-                'module_id' => '',
+               'module_id' => '',
                 'module_code' => '',
                 'module_name' => '',
                 'img' => '',
+                'current_img' => '',
                 'link' => '',
             ];
         } elseif ($action === 'update') {
@@ -115,6 +172,11 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $update = $pdo->prepare("UPDATE modules SET module_code = :code, module_name = :name, img = NULLIF(:img, ''), link = NULLIF(:link, '') WHERE module_id = :id");
+            if ($formData['img'] === '') {
+                $formData['img'] = $formData['current_img'];
+            }
+
+            $update = $pdo->prepare("UPDATE modules SET module_code = :code, module_name = :name, img = NULLIF(:img, ''), link = NULLIF(:link, '') WHERE module_id = :id");
             $update->execute([
                 ':code' => $formData['module_code'],
                 ':name' => $formData['module_name'],
@@ -129,7 +191,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Select a module to delete.');
             }
 
-            $pdo->prepare('DELETE FROM modules WHERE module_id = :id')->execute([':id' => $moduleId]);
+           $pdo->prepare('DELETE FROM modules WHERE module_id = :id')->execute([':id' => $moduleId]);
             $success = 'Module deleted successfully.';
 
             if ((int) ($formData['module_id'] ?? 0) === $moduleId) {
@@ -138,6 +200,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'module_code' => '',
                     'module_name' => '',
                     'img' => '',
+                    'current_img' => '',
                     'link' => '',
                 ];
             }
@@ -194,8 +257,9 @@ $modules = $pdo ? fetch_table('modules', 'module_name') : [];
         <div class="notice" style="background: rgba(40, 167, 69, 0.12); color: #1f7a32; border-color: rgba(40, 167, 69, 0.25);" role="status"><?php echo safe($success); ?></div>
       <?php endif; ?>
 
-      <form method="post" class="stacked" autocomplete="off">
+ <form method="post" class="stacked" autocomplete="off" enctype="multipart/form-data">
         <input type="hidden" name="module_id" value="<?php echo safe($formData['module_id']); ?>" />
+        <input type="hidden" name="current_img" value="<?php echo safe($formData['current_img']); ?>" />
         <div class="form-row">
           <div>
             <label class="label" for="module_code">Module Name</label>
@@ -205,11 +269,16 @@ $modules = $pdo ? fetch_table('modules', 'module_name') : [];
             <label class="label" for="module_name">Module Description</label>
             <input type="text" id="module_name" name="module_name" maxlength="255" value="<?php echo safe($formData['module_name']); ?>" placeholder="Human-friendly module name" required />
           </div>
-        </div>
+          </div>
         <div class="form-row">
           <div>
-            <label class="label" for="img">Image URL</label>
-            <input type="text" id="img" name="img" maxlength="255" value="<?php echo safe($formData['img']); ?>" placeholder="test.png" />
+            <label class="label" for="img_file">Module Image</label>
+            <input type="file" id="img_file" name="img_file" accept="image/*" />
+            <?php if ($formData['current_img']): ?>
+              <p class="muted" style="margin:6px 0 0;">Current image: <?php echo safe(basename($formData['current_img'])); ?></p>
+            <?php else: ?>
+              <p class="muted" style="margin:6px 0 0;">Upload an image (e.g., test.png) to display with the module.</p>
+            <?php endif; ?>
           </div>
           <div>
             <label class="label" for="link">Page Link</label>
@@ -247,17 +316,18 @@ $modules = $pdo ? fetch_table('modules', 'module_name') : [];
               <th style="width:200px;">Actions</th>
             </tr>
           </thead>
-          <tbody>
+           <tbody>
             <?php if ($modules): ?>
               <?php foreach ($modules as $module): ?>
+                <?php $imagePath = normalize_module_image_path($module['img'] ?? ''); ?>
                 <tr>
                   <td><?php echo safe((string) $module['module_id']); ?></td>
                   <td><?php echo safe($module['module_code']); ?></td>
                   <td><?php echo safe($module['module_name']); ?></td>
                   <td>
-                    <?php if (!empty($module['img'])): ?>
+                    <?php if ($imagePath !== ''): ?>
                       <div class="module-thumb">
-                        <img src="<?php echo safe($module['img']); ?>" alt="<?php echo safe($module['module_code']); ?> image" />
+                        <img src="<?php echo safe($imagePath); ?>" alt="<?php echo safe($module['module_code']); ?> image" />
                       </div>
                     <?php else: ?>
                       <div class="module-thumb" aria-hidden="true">--</div>
