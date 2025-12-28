@@ -276,8 +276,6 @@ $modules = $pdo ? fetch_table('modules', 'module_name') : [];
             <input type="file" id="img_file" name="img_file" accept="image/*" />
             <?php if ($formData['current_img']): ?>
               <p class="muted" style="margin:6px 0 0;">Current image: <?php echo safe(basename($formData['current_img'])); ?></p>
-            <?php else: ?>
-              <p class="muted" style="margin:6px 0 0;">Upload an image (e.g., test.png) to display with the module.</p>
             <?php endif; ?>
           </div>
           <div>
