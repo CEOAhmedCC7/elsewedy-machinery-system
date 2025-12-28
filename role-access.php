@@ -166,6 +166,17 @@ $activeRoleName = $activeRoleId !== null && isset($roleOptions[$activeRoleId])
   <link rel="stylesheet" href="./assets/styles.css" />
 </head>
 <body class="page">
+  <?php if ($error || $success): ?>
+    <div class="message-modal is-visible" role="alertdialog" aria-live="assertive" aria-label="Role notification">
+      <div class="message-dialog <?php echo $error ? 'is-error' : 'is-success'; ?>">
+        <div class="message-dialog__header">
+          <span class="message-title"><?php echo $error ? 'Action needed' : 'Success'; ?></span>
+          <button class="message-close" type="button" aria-label="Close message">&times;</button>
+        </div>
+        <p class="message-body"><?php echo safe($error ?: $success); ?></p>
+      </div>
+    </div>
+  <?php endif; ?>
   <header class="navbar">
     <div class="header">
       <img src="../EM%20Logo.jpg" alt="Elsewedy Machinery" class="logo" />
@@ -182,12 +193,6 @@ $activeRoleName = $activeRoleId !== null && isset($roleOptions[$activeRoleId])
   </header>
 
   <main style="padding:24px; display:grid; gap:24px;">
-    <?php if ($error): ?>
-      <div class="alert" style="color: var(--secondary); margin-bottom:12px;"><?php echo safe($error); ?></div>
-    <?php elseif ($success): ?>
-      <div class="alert" style="color: var(--secondary); margin-bottom:12px;"><?php echo safe($success); ?></div>
-    <?php endif; ?>
-
     <section class="form-container" aria-labelledby="role-actions-heading">
       <div class="section-header">
         <div>
@@ -318,12 +323,14 @@ $activeRoleName = $activeRoleId !== null && isset($roleOptions[$activeRoleId])
     </section>
   </main>
 
-  <script>
+ <script>
     const permissionLookup = <?php echo json_encode($permissionLookup); ?>;
     const roleSelect = document.querySelector('#role-select');
     const badge = document.querySelector('#active-role-badge');
     const activeRoleInput = document.querySelector('#active-role-id');
     const permissionInputs = Array.from(document.querySelectorAll('.permission-input'));
+    const messageModal = document.querySelector('.message-modal');
+    const messageClose = document.querySelector('.message-close');
 
     function updateBadge(roleId) {
       if (!badge || !roleSelect) return;
@@ -350,15 +357,19 @@ $activeRoleName = $activeRoleId !== null && isset($roleOptions[$activeRoleId])
       updateBadge(roleId);
     }
 
-    if (roleSelect) {
+  if (roleSelect) {
       roleSelect.addEventListener('change', (event) => {
         const roleId = event.target.value;
         applyPermissions(roleId);
-         });
+      });
     }
 
     if (roleSelect) {
       applyPermissions(roleSelect.value);
+    }
+
+    if (messageModal && messageClose) {
+      messageClose.addEventListener('click', () => messageModal.classList.remove('is-visible'));
     }
   </script>
 </body>

@@ -73,41 +73,45 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $moduleId = $formData['module_id'] !== '' ? (int) $formData['module_id'] : null;
 
-    $upload = $_FILES['img_file'] ?? null;
-    if ($upload && ($upload['error'] === UPLOAD_ERR_OK || $upload['error'] === UPLOAD_ERR_NO_FILE)) {
-        if ($upload['error'] === UPLOAD_ERR_OK) {
-            $originalName = basename((string) $upload['name']);
-            $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
-
-            if (!in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'], true)) {
-                throw new RuntimeException('Please upload a valid image file (jpg, jpeg, png, gif, webp, bmp).');
-            }
-
-            $baseName = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string) pathinfo($originalName, PATHINFO_FILENAME));
-            $baseName = $baseName !== '' ? $baseName : 'module_image';
-            $fileName = $baseName . '.' . $extension;
-            $targetPath = $uploadDir . '/' . $fileName;
-
-            $counter = 1;
-            while (file_exists($targetPath)) {
-                $fileName = $baseName . '_' . $counter . '.' . $extension;
-                $targetPath = $uploadDir . '/' . $fileName;
-                $counter++;
-            }
-
-            if (!move_uploaded_file($upload['tmp_name'], $targetPath)) {
-                throw new RuntimeException('Unable to save the uploaded image.');
-            }
-
-            $formData['img'] = 'assets/uploads/modules/' . $fileName;
-        } else {
-            $formData['img'] = $formData['current_img'];
-        }
-    } else {
-        throw new RuntimeException('Error uploading image.');
-    }
-
     try {
+        if (in_array($action, ['create', 'update'], true)) {
+            $upload = $_FILES['img_file'] ?? null;
+            $formData['img'] = $formData['current_img'];
+
+            if ($upload && $upload['error'] !== UPLOAD_ERR_NO_FILE) {
+                if ($upload['error'] === UPLOAD_ERR_OK) {
+                    $originalName = basename((string) $upload['name']);
+                    $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+
+                    if (!in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'], true)) {
+                        throw new RuntimeException('Please upload a valid image file (jpg, jpeg, png, gif, webp, bmp).');
+                    }
+
+                    $baseName = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string) pathinfo($originalName, PATHINFO_FILENAME));
+                    $baseName = $baseName !== '' ? $baseName : 'module_image';
+                    $fileName = $baseName . '.' . $extension;
+                    $targetPath = $uploadDir . '/' . $fileName;
+
+                    $counter = 1;
+                    while (file_exists($targetPath)) {
+                        $fileName = $baseName . '_' . $counter . '.' . $extension;
+                        $targetPath = $uploadDir . '/' . $fileName;
+                        $counter++;
+                    }
+
+                    if (!move_uploaded_file($upload['tmp_name'], $targetPath)) {
+                        throw new RuntimeException('Unable to save the uploaded image.');
+                    }
+
+                    $formData['img'] = 'assets/uploads/modules/' . $fileName;
+                } else {
+                    throw new RuntimeException('Error uploading image.');
+                }
+            } elseif ($action === 'create') {
+                $formData['img'] = '';
+            }
+        }
+
         if ($action === 'create') {
             if ($formData['module_code'] === '' || $formData['module_name'] === '') {
                 throw new RuntimeException('Module code and module name are required.');
@@ -221,6 +225,17 @@ $modules = $pdo ? fetch_table('modules', 'module_name') : [];
   <link rel="stylesheet" href="./assets/styles.css" />
 </head>
 <body class="page">
+  <?php if ($error !== '' || $success !== ''): ?>
+    <div class="message-modal is-visible" role="alertdialog" aria-live="assertive" aria-label="Modules notification">
+      <div class="message-dialog <?php echo $error ? 'is-error' : 'is-success'; ?>">
+        <div class="message-dialog__header">
+          <span class="message-title"><?php echo $error ? 'Action needed' : 'Success'; ?></span>
+          <button class="message-close" type="button" aria-label="Close message">&times;</button>
+        </div>
+        <p class="message-body"><?php echo safe($error !== '' ? $error : $success); ?></p>
+      </div>
+    </div>
+  <?php endif; ?>
   <header class="navbar">
     <div class="header">
       <img src="../EM%20Logo.jpg" alt="Elsewedy Machinery" class="logo" />
@@ -349,8 +364,16 @@ $modules = $pdo ? fetch_table('modules', 'module_name') : [];
             <?php endif; ?>
           </tbody>
         </table>
-      </div>
+       </div>
     </section>
   </main>
+  <script>
+    const messageModal = document.querySelector('.message-modal');
+    const messageClose = document.querySelector('.message-close');
+
+    if (messageModal && messageClose) {
+      messageClose.addEventListener('click', () => messageModal.classList.remove('is-visible'));
+    }
+  </script>
 </body>
 </html>

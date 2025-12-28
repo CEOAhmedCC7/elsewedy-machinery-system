@@ -128,7 +128,7 @@ if (!$modules) {
                   $imageSrc = './assets/Wallpaper.png';
               }
               $moduleLink = trim($module['link'] ?? $module['href'] ?? '');
-              $description = $module['description'] ?? (($module['module_name'] ?? 'Module'));
+              $description = $module['module_name'] ?? 'Module';
               $cardClasses = 'module-card' . ($canAccess && $moduleLink !== '' ? ' module-card--link' : '') . (!$canAccess ? ' module-card--disabled' : '');
 
               $permissionSummary = $hasPermissionMap
@@ -146,7 +146,7 @@ if (!$modules) {
                   <div class="module-card__status <?php echo safe($statusClass); ?>"><?php echo safe($accessLevel); ?></div>
                 </div>
                 <div class="module-card__body">
-                  <h4><?php echo safe($module['module_name']); ?></h4>
+                  <h4><?php echo safe($module['module_code']); ?></h4>
                   <p><small><em><?php echo safe($description); ?></em></small></p>
                 </div>
               </a>
