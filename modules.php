@@ -266,13 +266,7 @@ $modules = $pdo ? fetch_table('modules', 'module_name') : [];
         <div class="status-pill neutral">CRUD Ready</div>
       </div>
 
-      <?php if ($error !== ''): ?>
-        <div class="notice" role="alert"><?php echo safe($error); ?></div>
-      <?php elseif ($success !== ''): ?>
-        <div class="notice" style="background: rgba(40, 167, 69, 0.12); color: #1f7a32; border-color: rgba(40, 167, 69, 0.25);" role="status"><?php echo safe($success); ?></div>
-      <?php endif; ?>
-
- <form method="post" class="stacked" autocomplete="off" enctype="multipart/form-data">
+      <form method="post" class="stacked" autocomplete="off" enctype="multipart/form-data">
         <input type="hidden" name="module_id" value="<?php echo safe($formData['module_id']); ?>" />
         <input type="hidden" name="current_img" value="<?php echo safe($formData['current_img']); ?>" />
         <div class="form-row">
@@ -367,12 +361,25 @@ $modules = $pdo ? fetch_table('modules', 'module_name') : [];
        </div>
     </section>
   </main>
-  <script>
+   <script>
     const messageModal = document.querySelector('.message-modal');
     const messageClose = document.querySelector('.message-close');
 
     if (messageModal && messageClose) {
-      messageClose.addEventListener('click', () => messageModal.classList.remove('is-visible'));
+      const hideModal = () => messageModal.classList.remove('is-visible');
+
+      messageClose.addEventListener('click', hideModal);
+      messageModal.addEventListener('click', (event) => {
+        if (event.target === messageModal) {
+          hideModal();
+        }
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          hideModal();
+        }
+      });
     }
   </script>
 </body>

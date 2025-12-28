@@ -363,13 +363,25 @@ $activeRoleName = $activeRoleId !== null && isset($roleOptions[$activeRoleId])
         applyPermissions(roleId);
       });
     }
-
-    if (roleSelect) {
+  if (roleSelect) {
       applyPermissions(roleSelect.value);
     }
 
     if (messageModal && messageClose) {
-      messageClose.addEventListener('click', () => messageModal.classList.remove('is-visible'));
+      const hideModal = () => messageModal.classList.remove('is-visible');
+
+      messageClose.addEventListener('click', hideModal);
+      messageModal.addEventListener('click', (event) => {
+        if (event.target === messageModal) {
+          hideModal();
+        }
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          hideModal();
+        }
+      });
     }
   </script>
 </body>
