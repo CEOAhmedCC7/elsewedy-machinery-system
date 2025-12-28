@@ -82,15 +82,26 @@ if (!$modules) {
         </div>
       </div>
 
-      <div class="module-grid">
+        <div class="module-grid">
         <?php if ($modules): ?>
           <?php foreach ($modules as $module): ?>
             <?php
               $moduleId = isset($module['module_id']) ? (int) $module['module_id'] : null;
               $hasPermissionMap = !empty($modulePermissions);
               $canAccess = !$hasPermissionMap || ($moduleId !== null && !empty($modulePermissions[$moduleId]['read']) && $modulePermissions[$moduleId]['read']);
-              $moduleLink = trim($module['href'] ?? '');
-              $imageSrc = $module['img'] ?? './assets/Wallpaper.png';
+
+              $rawImage = $module['img'] ?? '';
+              if (is_string($rawImage)) {
+                  $trimmed = trim($rawImage, "{} \"");
+                  $moduleImage = $trimmed !== '' ? explode(',', $trimmed)[0] : '';
+              } elseif (is_array($rawImage)) {
+                  $moduleImage = reset($rawImage) ?: '';
+              } else {
+                  $moduleImage = '';
+              }
+
+              $imageSrc = $moduleImage !== '' ? trim($moduleImage) : './assets/Wallpaper.png';
+              $moduleLink = trim($module['href'] ?? $module['link'] ?? '');
               $description = $module['description'] ?? (($module['module_name'] ?? 'Module') . ' module');
               $cardClasses = 'module-card' . ($canAccess && $moduleLink !== '' ? ' module-card--link' : '') . (!$canAccess ? ' module-card--disabled' : '');
             ?>
