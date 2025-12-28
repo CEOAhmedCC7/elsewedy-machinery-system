@@ -471,12 +471,11 @@ td input.permission-input {
 
 .module-card__image {
   position: relative;
-  width: 450px;
-  height: 300px;
-  /* align-self: stretch; */
+  width: min(100%, 450px);
+  aspect-ratio: 3 / 2;
   margin: 20px;
   overflow: hidden;
-
+  max-width: 100%;
 }
 
 .module-card__image img {
@@ -484,8 +483,7 @@ td input.permission-input {
   height: 100%;
   object-fit: cover;
   display: block;
-    border-radius: 14px;
-
+  border-radius: 14px;
 }
 
 .module-card__status {
@@ -737,14 +735,6 @@ td input.permission-input {
   padding: 24px;
 }
 
-
-
-#modules {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
-}
-
 .card {
   position: relative;
   overflow: hidden;
@@ -863,4 +853,194 @@ td input.permission-input {
 
 .muted {
   color: var(--muted);
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+    padding: 10px 12px;
+    gap: 6px;
+  }
+
+  .navbar .header {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .navbar .links {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .navbar .user-chip {
+    align-items: center;
+    text-align: center;
+  }
+
+  .navbar .title {
+    justify-self: center;
+  }
+
+  .content,
+  .home-grid,
+  .card-grid,
+  .hero {
+    padding: 16px;
+  }
+
+  .module-card {
+    width: 100%;
+  }
+
+  .module-card__image {
+    margin: 12px 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .login-page {
+    padding: 80px 16px 32px;
+  }
+
+  .login-card {
+    margin-top: 120px;
+    width: 100%;
+    padding: 24px 18px;
+  }
+
+  .secured-footnote {
+    position: static;
+    width: 100%;
+    text-align: center;
+    margin-top: 12px;
+  }
+
+  .navbar .links a {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Responsive consolidation file for easy copy/paste */
+@media (max-width: 1280px) {
+  .content,
+  .home-grid,
+  .card-grid {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 992px) {
+  .navbar {
+    grid-template-columns: 1fr;
+    row-gap: 10px;
+    justify-items: center;
+  }
+
+  .navbar .links {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .navbar .title {
+    justify-self: center;
+  }
+
+  .hero {
+    grid-template-columns: 1fr;
+    text-align: center;
+    gap: 20px;
+  }
+
+  .hero .header {
+    justify-content: center;
+  }
+
+  .module-grid,
+  #modules {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  body {
+    font-size: 15px;
+  }
+
+  .content,
+  .home-grid,
+  .card-grid {
+    padding: 16px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .table-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .table-actions .filters,
+  .table-actions .actions {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .table-wrapper {
+    border-radius: 8px;
+  }
+}
+
+@media (max-width: 600px) {
+  .navbar .links {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .navbar a {
+    width: 100%;
+    text-align: center;
+  }
+
+  .hero {
+    padding: 14px;
+  }
+
+  .module-card__image {
+    margin: 10px;
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
