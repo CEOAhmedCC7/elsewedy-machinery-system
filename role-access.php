@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'create_role') {
             $roleName = trim($_POST['role_name'] ?? '');
             $description = trim($_POST['description'] ?? '');
-            $isActive = isset($_POST['is_active']);
+            $isActive = ($_POST['is_active'] ?? 'active') === 'active';
 
             if ($roleName === '') {
                 $error = 'Role name is required to create a role.';
@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'update_role') {
             $roleId = (int) ($_POST['role_id'] ?? 0);
             $description = trim($_POST['description'] ?? '');
-            $isActive = isset($_POST['is_active']);
+            $isActive = ($_POST['is_active'] ?? 'inactive') === 'active';
 
             if ($roleId === 0) {
                 $error = 'Choose a role to update.';
@@ -192,7 +192,8 @@ $activeRoleName = $activeRoleId !== null && isset($roleOptions[$activeRoleId])
       <div class="section-header">
         <div>
           <h3 id="role-actions-heading" style="margin:0; color:var(--secondary);">Role Actions</h3>
-          <p class="muted">Create, edit, or delete roles. Current roles are listed below.</p>
+          <br>
+          <!-- <p class="muted">Create, edit, or delete roles. Current roles are listed below.</p> -->
         </div>
         <button class="btn btn-save" type="submit" form="create-role-form">Create Role</button>
       </div>
@@ -207,10 +208,17 @@ $activeRoleName = $activeRoleId !== null && isset($roleOptions[$activeRoleId])
           <label class="label" for="role-description">Description</label>
           <input id="role-description" name="description" type="text" placeholder="What is this role responsible for?" />
         </div>
-        <label class="label" style="display:flex; align-items:center; gap:8px; margin-top:26px;">
-          <input type="checkbox" name="is_active" checked /> Active
-        </label>
-        <button class="btn btn-neutral" type="submit" style="align-self:flex-end;">Add</button>
+        <div class="radio-group">
+          <span class="label" style="margin-bottom:4px;">Status</span>
+          <label class="radio-option">
+            <input type="radio" name="is_active" value="active" checked />
+            Active
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="is_active" value="inactive" />
+            Inactive
+          </label>
+        </div>
       </form>
 
       <div class="table-wrapper" aria-live="polite">
@@ -227,8 +235,17 @@ $activeRoleName = $activeRoleId !== null && isset($roleOptions[$activeRoleId])
                   <td>
                     <input form="role-form-<?php echo safe($role['role_id']); ?>" type="text" name="description" value="<?php echo safe($role['description']); ?>" />
                   </td>
-                  <td style="text-align:center;">
-                    <input form="role-form-<?php echo safe($role['role_id']); ?>" type="checkbox" name="is_active" <?php echo $role['is_active'] ? 'checked' : ''; ?> />
+                   <td style="text-align:center;">
+                    <div class="radio-group" style="justify-content:center;">
+                      <label class="radio-option">
+                        <input form="role-form-<?php echo safe($role['role_id']); ?>" type="radio" name="is_active" value="active" <?php echo $role['is_active'] ? 'checked' : ''; ?> />
+                        Active
+                      </label>
+                      <label class="radio-option">
+                        <input form="role-form-<?php echo safe($role['role_id']); ?>" type="radio" name="is_active" value="inactive" <?php echo !$role['is_active'] ? 'checked' : ''; ?> />
+                        Inactive
+                      </label>
+                    </div>
                   </td>
                   <td class="role-row-actions">
                     <input form="role-form-<?php echo safe($role['role_id']); ?>" type="hidden" name="role_id" value="<?php echo safe($role['role_id']); ?>" />
@@ -249,7 +266,8 @@ $activeRoleName = $activeRoleId !== null && isset($roleOptions[$activeRoleId])
       <div class="section-header">
         <div>
           <h3 id="permissions-heading" style="margin:0; color:var(--secondary);">Permissions</h3>
-          <p class="muted">Search for a role to load its current permissions, then toggle CRUD per module.</p>
+          <br>
+          <!-- <p class="muted">Choose for a role to load its current permissions, then toggle CRUD per module.</p> -->
         </div>
         <?php if ($activeRoleName): ?>
           <div class="badge" id="active-role-badge">Currently viewing: <?php echo safe($activeRoleName); ?></div>
@@ -260,16 +278,7 @@ $activeRoleName = $activeRoleId !== null && isset($roleOptions[$activeRoleId])
         <input type="hidden" name="action" value="save_permissions" />
         <input type="hidden" name="active_role_id" id="active-role-id" value="<?php echo safe((string) $activeRoleId); ?>" />
 
-        <div class="form-row">
-          <div>
-            <label class="label" for="role-search">Search Role</label>
-            <input id="role-search" type="search" placeholder="Type a role name" list="role-options" value="<?php echo safe($activeRoleName); ?>" />
-            <datalist id="role-options">
-              <?php foreach ($roles as $role): ?>
-                <option value="<?php echo safe($role['role_name']); ?>"></option>
-              <?php endforeach; ?>
-            </datalist>
-          </div>
+       <div class="form-row">
           <div>
             <label class="label" for="role-select">Select Role</label>
             <select id="role-select">
@@ -283,7 +292,7 @@ $activeRoleName = $activeRoleId !== null && isset($roleOptions[$activeRoleId])
         <div class="table-wrapper">
           <table id="access-table">
             <thead>
-              <tr><th>Module Code</th><th>Module</th><th>Create</th><th>Read</th><th>Update</th><th>Delete</th></tr>
+              <tr><th>Module Name</th><th>Module Description</th><th>Create</th><th>Read</th><th>Update</th><th>Delete</th></tr>
             </thead>
             <tbody>
               <?php if ($modules && $activeRoleId !== null): ?>
@@ -311,16 +320,10 @@ $activeRoleName = $activeRoleId !== null && isset($roleOptions[$activeRoleId])
 
   <script>
     const permissionLookup = <?php echo json_encode($permissionLookup); ?>;
-    const roleIndex = <?php echo json_encode(array_map(static function ($role) {
-        return ['name' => $role['role_name'] ?? '', 'id' => (string) ($role['role_id'] ?? '')];
-    }, $roles)); ?>;
-
     const roleSelect = document.querySelector('#role-select');
-    const roleSearch = document.querySelector('#role-search');
     const badge = document.querySelector('#active-role-badge');
     const activeRoleInput = document.querySelector('#active-role-id');
     const permissionInputs = Array.from(document.querySelectorAll('.permission-input'));
-    const rolesByName = new Map(roleIndex.map((item) => [String(item.name).toLowerCase(), String(item.id)]));
 
     function updateBadge(roleId) {
       if (!badge || !roleSelect) return;
@@ -351,21 +354,7 @@ $activeRoleName = $activeRoleId !== null && isset($roleOptions[$activeRoleId])
       roleSelect.addEventListener('change', (event) => {
         const roleId = event.target.value;
         applyPermissions(roleId);
-        const selectedOption = roleSelect.options[roleSelect.selectedIndex];
-        if (selectedOption && roleSearch) {
-          roleSearch.value = selectedOption.textContent;
-        }
-      });
-    }
-
-    if (roleSearch) {
-      roleSearch.addEventListener('input', (event) => {
-        const match = rolesByName.get(event.target.value.toLowerCase());
-        if (match && roleSelect) {
-          roleSelect.value = match;
-          applyPermissions(match);
-        }
-      });
+         });
     }
 
     if (roleSelect) {
