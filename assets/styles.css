@@ -197,11 +197,16 @@ input:focus, select:focus, textarea:focus {
   letter-spacing: 0.3px;
   box-shadow: var(--shadow);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  color: white;
 }
 
 .btn-save { background: var(--accent-success); color: #fff; }
@@ -219,6 +224,16 @@ input:focus, select:focus, textarea:focus {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.table-actions form {
+  margin: 0;
+}
+
+.table-actions .btn {
+  min-width: 90px;
+  padding: 12px 14px;
 }
 
 .module-thumb {
@@ -255,6 +270,35 @@ table th, table td {
   padding: 12px 14px;
   text-align: left;
   border-bottom: 1px solid #ececec;
+}
+
+input.permission-input {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--secondary);
+  border-radius: 6px;
+  background: #fff;
+  display: inline-grid;
+  place-items: center;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input.permission-input:checked {
+  background: var(--secondary);
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px rgba(196, 17, 23, 0.12);
+}
+
+input.permission-input:checked::after {
+  content: '✔';
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+}
+
+td input.permission-input {
+  margin: 0 auto;
 }
 
 .role-row-actions {
