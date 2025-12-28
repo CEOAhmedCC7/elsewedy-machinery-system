@@ -111,15 +111,13 @@ if (!$modules) {
 
               $rawImage = $module['img'] ?? '';
               if (is_string($rawImage)) {
-                  $trimmed = trim($rawImage, "{} \" ");
-                  $moduleImage = $trimmed !== '' ? explode(',', $trimmed)[0] : '';
+                  $sanitizedImage = trim($rawImage, "{} \" ");
               } elseif (is_array($rawImage)) {
-                  $moduleImage = reset($rawImage) ?: '';
+                  $sanitizedImage = trim((string) (reset($rawImage) ?: ''));
               } else {
-                  $moduleImage = '';
+                  $sanitizedImage = '';
               }
 
-              $sanitizedImage = trim($moduleImage);
               if ($sanitizedImage !== '') {
                   $hasProtocol = preg_match('/^https?:\/\//i', $sanitizedImage) === 1;
                   $hasLeadingSlash = strncmp($sanitizedImage, '/', 1) === 0 || strncmp($sanitizedImage, './', 2) === 0;
@@ -129,7 +127,7 @@ if (!$modules) {
               } else {
                   $imageSrc = './assets/Wallpaper.png';
               }
-              $moduleLink = trim($module['href'] ?? $module['link'] ?? '');
+              $moduleLink = trim($module['link'] ?? $module['href'] ?? '');
               $description = $module['description'] ?? (($module['module_name'] ?? 'Module'));
               $cardClasses = 'module-card' . ($canAccess && $moduleLink !== '' ? ' module-card--link' : '') . (!$canAccess ? ' module-card--disabled' : '');
 
@@ -155,7 +153,13 @@ if (!$modules) {
             <?php else: ?>
               <div class="<?php echo safe($cardClasses); ?>" aria-disabled="true">
                 <div class="module-card__image">
-                  <img src="<?php echo safe($imageSrc); ?>" alt="<?php echo safe($module['module_name'] ?? 'Module'); ?>" />
+                  <?php if ($moduleLink !== ''): ?>
+                    <a href="<?php echo safe($moduleLink); ?>">
+                      <img src="<?php echo safe($imageSrc); ?>" alt="<?php echo safe($module['module_name'] ?? 'Module'); ?>" />
+                    </a>
+                  <?php else: ?>
+                    <img src="<?php echo safe($imageSrc); ?>" alt="<?php echo safe($module['module_name'] ?? 'Module'); ?>" />
+                  <?php endif; ?>
                   <div class="module-card__status <?php echo safe($statusClass); ?>"><?php echo safe($accessLevel); ?></div>
                 </div>
                 <div class="module-card__body">
