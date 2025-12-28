@@ -643,7 +643,8 @@ td input.permission-input {
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
 }
 
-.error-modal {
+.error-modal,
+.message-modal {
   position: fixed;
   inset: 0;
   display: grid;
@@ -658,12 +659,14 @@ td input.permission-input {
   z-index: 10;
 }
 
-.error-modal.is-visible {
+.error-modal.is-visible,
+.message-modal.is-visible {
   opacity: 1;
   pointer-events: all;
 }
 
-.error-dialog {
+.error-dialog,
+.message-dialog {
   background: #fff;
   padding: 18px 20px;
   border-radius: 14px;
@@ -675,7 +678,8 @@ td input.permission-input {
   animation: pop-in 0.2s ease forwards;
 }
 
-.error-dialog__header {
+.error-dialog__header,
+.message-dialog__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -683,12 +687,14 @@ td input.permission-input {
   margin-bottom: 8px;
 }
 
-.error-title {
+.error-title,
+.message-title {
   font-weight: 700;
   color: var(--secondary);
 }
 
-.error-close {
+.error-close,
+.message-close {
   border: none;
   background: rgba(196, 17, 23, 0.08);
   color: var(--secondary);
@@ -697,6 +703,20 @@ td input.permission-input {
   height: 32px;
   font-size: 18px;
   cursor: pointer;
+}
+
+.message-dialog.is-success {
+  border-color: rgba(40, 167, 69, 0.25);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+}
+
+.message-dialog.is-error {
+  border-color: rgba(196, 17, 23, 0.2);
+}
+
+.message-body {
+  margin: 0;
+  color: #2d2d2d;
 }
 
 .error-message {
