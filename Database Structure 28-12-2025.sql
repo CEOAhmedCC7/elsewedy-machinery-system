@@ -2,12 +2,12 @@
 -- PostgreSQL database dump
 --
 
-\restrict n2fd4H9czg2LPryKlc7YxGM15ZxUnWHLPejOIU4vsb6Pk7qy2ekm2qB6ZKhbkRA
+\restrict VnCjsbkXtYVLhcXd4gmHri7oiAaX0096hULp0PXRIbWdwciX2Ajfra19mEWE1XV
 
 -- Dumped from database version 18.1
 -- Dumped by pg_dump version 18.1
 
--- Started on 2025-12-28 10:32:29
+-- Started on 2025-12-28 13:31:27
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -601,7 +601,8 @@ CREATE TABLE public.modules (
     module_id integer NOT NULL,
     module_code character varying(100) NOT NULL,
     module_name character varying(255) NOT NULL,
-    img character varying(255)[]
+    img character varying(255),
+    link character varying(255)
 );
 
 
@@ -1486,8 +1487,10 @@ COPY public.lost_deals (lost_deal_id, lead_id, business_line_id, customer_id, op
 -- Data for Name: modules; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.modules (module_id, module_code, module_name, img) FROM stdin;
-1	ROLE	Role Management	\N
+COPY public.modules (module_id, module_code, module_name, img, link) FROM stdin;
+2	test	testttttttt	test.png	users.php
+1	Role Management	Role Management	\N	role-access.php
+3	Module Management	this is the CRUD for the modules	\N	\N
 \.
 
 
@@ -1742,7 +1745,7 @@ SELECT pg_catalog.setval('public.lost_deals_lost_deal_id_seq', 1, false);
 -- Name: modules_module_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.modules_module_id_seq', 1, true);
+SELECT pg_catalog.setval('public.modules_module_id_seq', 3, true);
 
 
 --
@@ -3031,11 +3034,11 @@ ALTER TABLE ONLY public.user_roles
     ADD CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE;
 
 
--- Completed on 2025-12-28 10:32:30
+-- Completed on 2025-12-28 13:31:27
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict n2fd4H9czg2LPryKlc7YxGM15ZxUnWHLPejOIU4vsb6Pk7qy2ekm2qB6ZKhbkRA
+\unrestrict VnCjsbkXtYVLhcXd4gmHri7oiAaX0096hULp0PXRIbWdwciX2Ajfra19mEWE1XV
 
