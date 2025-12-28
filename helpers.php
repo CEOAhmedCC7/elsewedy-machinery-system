@@ -92,3 +92,76 @@ function require_login(): array
 
     return $user;
 }
+
+/**
+ * Load CRUD permissions for the given user keyed by module_code.
+ */
+function get_user_crud_permissions(int $userId): array
+{
+    static $cache = [];
+
+    if (isset($cache[$userId])) {
+        return $cache[$userId];
+    }
+
+    try {
+        $pdo = get_pdo();
+        $stmt = $pdo->prepare(
+            'SELECT m.module_code, rp.can_create, rp.can_read, rp.can_update, rp.can_delete
+             FROM role_module_permissions rp
+             INNER JOIN user_roles ur ON ur.role_id = rp.role_id
+             INNER JOIN modules m ON m.module_id = rp.module_id
+             WHERE ur.user_id = :user_id'
+        );
+        $stmt->execute([':user_id' => $userId]);
+
+        $permissions = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $code = strtoupper((string) $row['module_code']);
+            $permissions[$code] = [
+                'create' => filter_var($row['can_create'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
+                'read' => filter_var($row['can_read'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
+                'update' => filter_var($row['can_update'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
+                'delete' => filter_var($row['can_delete'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
+            ];
+        }
+
+        $cache[$userId] = $permissions;
+        return $permissions;
+    } catch (Throwable $e) {
+        error_log('Failed to load user permissions: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Check if the supplied user can perform the CRUD action on the module code.
+ */
+function has_crud_permission(array $user, string $moduleCode, string $action): bool
+{
+    if (empty($user['user_id'])) {
+        return false;
+    }
+
+    $normalizedAction = strtolower($action);
+    if (!in_array($normalizedAction, ['create', 'read', 'update', 'delete'], true)) {
+        return false;
+    }
+
+    $permissions = get_user_crud_permissions((int) $user['user_id']);
+    $code = strtoupper($moduleCode);
+
+    if (!isset($permissions[$code])) {
+        return false;
+    }
+
+    return !empty($permissions[$code][$normalizedAction]);
+}
+
+function permission_denied_modal(): array
+{
+    return [
+        'title' => 'Request the administrator for the access',
+        'subtitle' => "You don't have the access for this action.",
+    ];
+}
