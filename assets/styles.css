@@ -477,7 +477,7 @@ td input.permission-input {
 
 .module-card__image {
   position: relative;
-  width: min(100%, 370px);
+  width: 100%;
   aspect-ratio: 3 / 2;
   margin: 12px 12px 6px;
   overflow: hidden;
