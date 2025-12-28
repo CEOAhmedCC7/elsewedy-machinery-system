@@ -2,6 +2,7 @@
 require_once __DIR__ . '/helpers.php';
 
 $currentUser = require_login();
+$moduleCode = resolve_module_code('ROLE');
 $pdo = get_pdo();
 $error = '';
 $success = '';
@@ -9,9 +10,22 @@ $success = '';
 // Handle role and permission actions.
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+    $permissionError = enforce_action_permission(
+        $currentUser,
+        $moduleCode,
+        $action,
+        [
+            'create_role' => 'create',
+            'update_role' => 'update',
+            'delete_role' => 'delete',
+            'save_permissions' => 'update',
+        ]
+    );
 
     try {
-        if ($action === 'create_role') {
+        if ($permissionError) {
+            $error = $permissionError;
+        } elseif ($action === 'create_role') {
             $roleName = trim($_POST['role_name'] ?? '');
             $description = trim($_POST['description'] ?? '');
             $isActive = ($_POST['is_active'] ?? 'active') === 'active';

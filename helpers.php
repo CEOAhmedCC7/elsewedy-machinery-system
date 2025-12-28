@@ -158,6 +158,60 @@ function has_crud_permission(array $user, string $moduleCode, string $action): b
     return !empty($permissions[$code][$normalizedAction]);
 }
 
+/**
+ * Try to resolve the module code using the provided fallback or the current script name.
+ */
+function resolve_module_code(?string $fallbackCode = null): ?string
+{
+    $normalizedFallback = $fallbackCode !== null ? strtoupper(trim($fallbackCode)) : null;
+    $script = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+
+    try {
+        if ($script !== '') {
+            $pdo = get_pdo();
+            $stmt = $pdo->prepare('SELECT module_code FROM modules WHERE link = :link LIMIT 1');
+            $stmt->execute([':link' => $script]);
+            $row = $stmt->fetch();
+
+            if ($row && isset($row['module_code'])) {
+                return strtoupper((string) $row['module_code']);
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('Failed to resolve module code: ' . $e->getMessage());
+    }
+
+    return $normalizedFallback;
+}
+
+/**
+ * Map an incoming action value to a CRUD permission and validate access.
+ */
+function enforce_action_permission(array $user, string $moduleCode, string $action, array $actionCrudMap): ?string
+{
+    if ($action === '') {
+        return null;
+    }
+
+    $normalizedAction = strtolower($action);
+    $crudAction = $actionCrudMap[$normalizedAction] ?? null;
+
+    if ($crudAction === null) {
+        return null;
+    }
+
+    $resolvedModule = resolve_module_code($moduleCode);
+    if ($resolvedModule === null) {
+        return 'Module permissions are not configured.';
+    }
+
+    if (!has_crud_permission($user, $resolvedModule, $crudAction)) {
+        return "You don't have permission to {$crudAction} this module.";
+    }
+
+    return null;
+}
+
 function permission_denied_modal(): array
 {
     return [

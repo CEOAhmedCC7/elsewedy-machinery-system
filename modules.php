@@ -17,6 +17,7 @@ function normalize_module_image_path(string $path): string
 }
 
 $user = require_login();
+$moduleCode = resolve_module_code('MODULES');
 
 $pdo = null;
 $error = '';
@@ -62,6 +63,17 @@ if ($pdo && $requestedModuleId) {
 
 if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+    $permissionError = enforce_action_permission(
+        $user,
+        $moduleCode,
+        $action,
+        [
+            'create' => 'create',
+            'update' => 'update',
+            'delete' => 'delete',
+        ]
+    );
+
     $formData = [
         'module_id' => trim((string) ($_POST['module_id'] ?? '')),
         'module_code' => trim((string) ($_POST['module_code'] ?? '')),
@@ -74,7 +86,9 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $moduleId = $formData['module_id'] !== '' ? (int) $formData['module_id'] : null;
 
     try {
-        if (in_array($action, ['create', 'update'], true)) {
+        if ($permissionError) {
+            $error = $permissionError;
+        } elseif (in_array($action, ['create', 'update'], true)) {
             $upload = $_FILES['img_file'] ?? null;
             $formData['img'] = $formData['current_img'];
 
@@ -112,7 +126,9 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if ($action === 'create') {
+         if ($error) {
+            // Skip action processing when permission check fails.
+        } elseif ($action === 'create') {
             if ($formData['module_code'] === '' || $formData['module_name'] === '') {
                 throw new RuntimeException('Module code and module name are required.');
             }
