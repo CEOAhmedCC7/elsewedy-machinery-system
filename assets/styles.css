@@ -170,6 +170,24 @@ input:focus, select:focus, textarea:focus {
   flex-wrap: wrap;
 }
 
+.radio-group {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid rgba(196, 17, 23, 0.3);
+  border-radius: var(--input-radius);
+  background: #fff;
+  font-weight: 600;
+}
+
 .btn {
   border: none;
   padding: 12px 18px;
@@ -189,12 +207,39 @@ input:focus, select:focus, textarea:focus {
 .btn-save { background: var(--accent-success); color: #fff; }
 .btn-delete { background: var(--accent-danger); color: #fff; }
 .btn-neutral { background: #f1f3f5; color: #222; }
+.btn-update { background: #0d3b66; color: #fff; }
 
 .table-wrapper {
   overflow-x: auto;
   box-shadow: var(--shadow);
   border-radius: var(--radius);
 }
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.module-thumb {
+  width: 70px;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e3e6ea;
+  border-radius: var(--input-radius);
+  background: #f8f9fa;
+  overflow: hidden;
+}
+
+.module-thumb img {
+  width: 70px;
+  height: 70px;
+  object-fit: cover;
+  display: block;
+}
+
 
 table {
   width: 100%;
