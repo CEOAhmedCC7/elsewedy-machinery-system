@@ -111,7 +111,7 @@ if (!$modules) {
 
               $rawImage = $module['img'] ?? '';
               if (is_string($rawImage)) {
-                  $trimmed = trim($rawImage, "{} \"");
+                  $trimmed = trim($rawImage, "{} \" ");
                   $moduleImage = $trimmed !== '' ? explode(',', $trimmed)[0] : '';
               } elseif (is_array($rawImage)) {
                   $moduleImage = reset($rawImage) ?: '';
@@ -119,7 +119,16 @@ if (!$modules) {
                   $moduleImage = '';
               }
 
-               $imageSrc = $moduleImage !== '' ? trim($moduleImage) : './assets/Wallpaper.png';
+              $sanitizedImage = trim($moduleImage);
+              if ($sanitizedImage !== '') {
+                  $hasProtocol = preg_match('/^https?:\/\//i', $sanitizedImage) === 1;
+                  $hasLeadingSlash = strncmp($sanitizedImage, '/', 1) === 0 || strncmp($sanitizedImage, './', 2) === 0;
+                  $imageSrc = $hasProtocol || $hasLeadingSlash
+                      ? $sanitizedImage
+                      : './assets/' . ltrim($sanitizedImage, '/');
+              } else {
+                  $imageSrc = './assets/Wallpaper.png';
+              }
               $moduleLink = trim($module['href'] ?? $module['link'] ?? '');
               $description = $module['description'] ?? (($module['module_name'] ?? 'Module'));
               $cardClasses = 'module-card' . ($canAccess && $moduleLink !== '' ? ' module-card--link' : '') . (!$canAccess ? ' module-card--disabled' : '');
