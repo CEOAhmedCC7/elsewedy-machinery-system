@@ -314,7 +314,7 @@ table th, table td {
 .module-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  gap: 10px;
   margin-top: 12px;
 }
 
@@ -343,8 +343,8 @@ table th, table td {
 }
 
 .module-card--link:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.12);
+  /* transform: translateY(-3px); */
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.459);
 }
 
 .module-card--link .module-card__image img {
@@ -353,7 +353,7 @@ table th, table td {
 
 .module-card__image {
   position: relative;
-  width: 300px;
+  width: 450px;
   height: 300px;
   /* align-self: stretch; */
   margin: 20px;
@@ -399,7 +399,7 @@ table th, table td {
 
 .module-card__body h4 {
   margin: 0;
-  font-size: 17px;
+  font-size:  18px;
   color: var(--secondary);
 }
 
