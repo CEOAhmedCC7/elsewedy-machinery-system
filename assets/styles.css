@@ -154,6 +154,35 @@ select, textarea {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+input[type="file"] {
+  width: 100%;
+  padding: 4px;
+  border-radius: var(--input-radius);
+  border: 1.5px solid var(--secondary);
+  background: #fff;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+input[type="file"]::file-selector-button,
+input[type="file"]::-webkit-file-upload-button {
+  background: var(--secondary);
+  color: #fff;
+  border: none;
+  padding: 10px 14px;
+  margin-right: 12px;
+  border-radius: var(--input-radius);
+  cursor: pointer;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+input[type="file"]:focus {
+  border-color: #a50f15;
+  box-shadow: 0 0 0 3px rgba(196, 17, 23, 0.1);
+}
 textarea {
   min-height: 100px;
   resize: vertical;
