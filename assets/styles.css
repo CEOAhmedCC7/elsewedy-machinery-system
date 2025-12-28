@@ -431,9 +431,15 @@ td input.permission-input {
 
 .module-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
   margin-top: 12px;
+}
+
+@media (min-width: 1280px) {
+  .module-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 1100px) {
@@ -456,7 +462,7 @@ td input.permission-input {
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
 
@@ -471,9 +477,9 @@ td input.permission-input {
 
 .module-card__image {
   position: relative;
-  width: min(100%, 450px);
+  width: min(100%, 370px);
   aspect-ratio: 3 / 2;
-  margin: 20px;
+  margin: 12px 12px 6px;
   overflow: hidden;
   max-width: 100%;
 }
@@ -507,7 +513,7 @@ td input.permission-input {
 }
 
 .module-card__body {
-  padding: 14px 14px 16px;
+  padding: 12px 12px 14px;
   display: grid;
   gap: 8px;
   text-align: center;
