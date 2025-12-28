@@ -9,8 +9,8 @@ $modulePermissions = [];
 if (!empty($user['user_id'])) {
     try {
         $pdo = get_pdo();
-        $stmt = $pdo->prepare(
-            'SELECT rp.module_id, rp.can_read
+$stmt = $pdo->prepare(
+            'SELECT rp.module_id, rp.can_create, rp.can_read, rp.can_update, rp.can_delete
              FROM role_module_permissions rp
              INNER JOIN user_roles ur ON ur.role_id = rp.role_id
              WHERE ur.user_id = :user_id'
@@ -20,7 +20,10 @@ if (!empty($user['user_id'])) {
         foreach ($stmt->fetchAll() as $row) {
             $moduleId = (int) $row['module_id'];
             $modulePermissions[$moduleId] = [
+                'create' => filter_var($row['can_create'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
                 'read' => filter_var($row['can_read'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
+                'update' => filter_var($row['can_update'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
+                'delete' => filter_var($row['can_delete'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
             ];
         }
     } catch (Throwable $e) {
@@ -87,7 +90,24 @@ if (!$modules) {
             <?php
               $moduleId = isset($module['module_id']) ? (int) $module['module_id'] : null;
               $hasPermissionMap = !empty($modulePermissions);
-              $canAccess = !$hasPermissionMap || ($moduleId !== null && !empty($modulePermissions[$moduleId]['read']) && $modulePermissions[$moduleId]['read']);
+              $permissionSet = $moduleId !== null && isset($modulePermissions[$moduleId]) ? $modulePermissions[$moduleId] : [];
+              $permissionLetters = [];
+
+              if (!empty($permissionSet['create'])) {
+                  $permissionLetters[] = 'C';
+              }
+              if (!empty($permissionSet['read'])) {
+                  $permissionLetters[] = 'R';
+              }
+              if (!empty($permissionSet['update'])) {
+                  $permissionLetters[] = 'U';
+              }
+              if (!empty($permissionSet['delete'])) {
+                  $permissionLetters[] = 'D';
+              }
+
+              $hasAnyPermission = !empty(array_filter($permissionSet));
+              $canAccess = !$hasPermissionMap || $hasAnyPermission;
 
               $rawImage = $module['img'] ?? '';
               if (is_string($rawImage)) {
@@ -104,13 +124,12 @@ if (!$modules) {
               $description = $module['description'] ?? (($module['module_name'] ?? 'Module') . ' module');
               $cardClasses = 'module-card' . ($canAccess && $moduleLink !== '' ? ' module-card--link' : '') . (!$canAccess ? ' module-card--disabled' : '');
 
-              if ($canAccess) {
-                  $accessLevel = $hasPermissionMap ? 'Read only access' : 'Full access';
-                  $statusClass = 'module-card__status--allowed';
-              } else {
-                  $accessLevel = 'No access';
-                  $statusClass = 'module-card__status--blocked';
-              }
+              $permissionSummary = $hasPermissionMap
+                  ? (!empty($permissionLetters) ? implode(', ', $permissionLetters) : 'No access')
+                  : 'C, R, U, D';
+
+              $accessLevel = $canAccess ? $permissionSummary : 'No access';
+              $statusClass = $canAccess ? 'module-card__status--allowed' : 'module-card__status--blocked';
             ?>
 
             <?php if ($canAccess && $moduleLink !== ''): ?>
