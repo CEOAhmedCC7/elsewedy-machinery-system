@@ -144,13 +144,15 @@ img.logo {
 
 .filter-grid {
   display: flex;
+  flex: 1;
   gap: 12px;
   align-items: flex-end;
   flex-wrap: nowrap;
+  min-width: max-content;
 }
 
 .filter-grid > div {
-  min-width: 170px;
+  flex: 0 0 200px;
 }
 
 .filter-form input[type="text"],
@@ -166,8 +168,10 @@ img.logo {
 .filter-actions {
   justify-content: flex-end;
   gap: 8px;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  padding-bottom: 6px;
 }
-
 
 .label {
   font-weight: 600;
