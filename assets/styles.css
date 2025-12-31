@@ -135,24 +135,22 @@ img.logo {
 .filter-form {
   display: flex;
   gap: 12px;
-  align-items: flex-end;
+  align-items: flex-start;
   margin-top: 10px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
+  flex-wrap: wrap;
   padding-bottom: 6px;
 }
 
 .filter-grid {
-  display: flex;
-  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
-  align-items: flex-end;
-  flex-wrap: nowrap;
-  min-width: max-content;
+  flex: 1 1 360px;
+  min-width: 0;
 }
 
 .filter-grid > div {
-  flex: 0 0 200px;
+  min-width: 170px;
 }
 
 .filter-form input[type="text"],
@@ -166,13 +164,13 @@ img.logo {
 }
 
 .filter-actions {
-  justify-content: flex-end;
+  display: flex;
+  justify-content: flex-start;
   gap: 8px;
-  flex-wrap: nowrap;
-  align-items: flex-end;
-  padding-bottom: 6px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
 }
-
 .label {
   font-weight: 600;
   margin-bottom: 6px;
