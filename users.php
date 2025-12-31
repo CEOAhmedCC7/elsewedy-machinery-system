@@ -347,7 +347,7 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
           <button class="btn btn-save" type="submit" name="action" value="create">Create New User</button>
           <button class="btn btn-update" type="submit" name="action" value="update">Update</button>
           <button class="btn btn-delete" type="submit" name="action" value="delete" onclick="return confirm('Are you sure you want to delete this user?');">Delete</button>
-          <button class="btn btn-clear" type="button" id="clear-fields">Clear Fields</button>
+          <button class="btn btn-delete" type="button" id="clear-fields">Clear Fields</button>
         </div>
       </form>
 
@@ -355,18 +355,26 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
         <table class="filter-table">
           <tbody>
             <tr>
+              <td> <label class="label" for="filter_user_id">Filter by ID</label> </td>
+              <td> <label class="label" for="filter_name">Filter by Name</label> </td>
+              <td> <label class="label" for="filter_role">Filter by Role</label> </td>
+              <td> <label class="label" for="filter_status">Filter by Status</label> </td>
+              <td> <label class="label" for="actions">Actions</label> </td>
+            </tr>
+
+            <tr>
               <td class="filter-cell">
-                <label class="label" for="filter_user_id">Filter by ID</label>
+                <!-- <label class="label" for="filter_user_id">Filter by ID</label> -->
                 <input type="number" id="filter_user_id" name="filter_user_id" value="<?php echo safe($filters['user_id']); ?>" placeholder="User ID" />
               </td>
               <td class="filter-cell">
-                <label class="label" for="filter_name">Filter by Name</label>
+                <!-- <label class="label" for="filter_name">Filter by Name</label> -->
                 <input type="text" id="filter_name" name="filter_name" value="<?php echo safe($filters['name']); ?>" placeholder="Full name" />
               </td>
 
                
               <td class="filter-cell">
-                <label class="label" for="filter_role">Filter by Role</label>
+                <!-- <label class="label" for="filter_role">Filter by Role</label> -->
                 <select id="filter_role" name="filter_role">
                   <option value="">All roles</option>
                   <?php foreach ($roleOptions as $role): ?>
@@ -377,7 +385,7 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
                 </select>
               </td>
               <td class="filter-cell">
-                <label class="label" for="filter_status">Filter by Status</label>
+                <!-- <label class="label" for="filter_status">Filter by Status</label> -->
                 <select id="filter_status" name="filter_status">
                   <option value="">All statuses</option>
                   <option value="active" <?php echo $filters['status'] === 'active' ? 'selected' : ''; ?>>Active</option>
@@ -386,8 +394,8 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
               </td>
               <td class="filter-actions-cell" rowspan="2">
                 <div class="actions filter-actions">
-                  <button class="btn btn-filter" type="submit">Apply Filters</button>
-                  <a class="btn btn-reset" href="users.php" style="text-decoration:none;">Reset</a>
+                  <button class="btn btn-update" type="submit">Apply Filters</button>
+                  <a class="btn btn-delete" href="users.php" style="text-decoration:none;">Reset</a>
                   <button class="btn btn-delete" type="submit" form="bulk-delete-form" name="action" value="bulk_delete" onclick="return confirm('Delete selected users?');">Delete Selected</button>
                 </div>
               </td>
