@@ -2,16 +2,51 @@
 require_once __DIR__ . '/helpers.php';
 
 $currentUser = require_login();
+$moduleCode = resolve_module_code('USERS');
 $error = '';
 $success = '';
 
-$userIdPosted = trim($_POST['user_id'] ?? '');
+$pdo = null;
+try {
+    $pdo = get_pdo();
+} catch (Throwable $e) {
+    $error = format_db_error($e, 'database connection');
+}
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+$roles = fetch_table('roles', 'role_name');
+$roleOptions = to_options($roles, 'role_id', 'role_name');
+$allowedRoleIds = array_map(static fn ($role) => (string) $role['value'], $roleOptions);
+
+$submitted = [
+    'user_id' => trim($_POST['user_id'] ?? ''),
+    'full_name' => trim($_POST['full_name'] ?? ''),
+    'email' => trim($_POST['email'] ?? ''),
+    'password' => trim($_POST['password'] ?? ''),
+    'role_id' => trim($_POST['role_id'] ?? ''),
+    'is_active' => ($_POST['is_active'] ?? 'true') === 'false' ? 'false' : 'true',
+];
+
+$selectedIds = array_map('intval', (array) ($_POST['selected_ids'] ?? []));
+
+if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+    $permissionError = enforce_action_permission(
+        $currentUser,
+        $moduleCode ?? 'USERS',
+        $action,
+        [
+            'create' => 'create',
+            'view' => 'read',
+            'update' => 'update',
+            'delete' => 'delete',
+            'bulk_delete' => 'delete',
+        ]
+    );
 
     try {
-        if ($action === 'create') {
+        if ($permissionError) {
+            $error = $permissionError;
+        } elseif ($action === 'create') {
             $isActive = filter_var($submitted['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
 
             if ($submitted['full_name'] === '') {
@@ -22,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Please provide a valid email address.';
             } elseif ($submitted['password'] === '') {
                 $error = 'Password is required to create a user.';
-            } elseif (!in_array((string) $submitted['role_id'], array_map('strval', $allowedRoleIds), true)) {
+            } elseif (!in_array((string) $submitted['role_id'], $allowedRoleIds, true)) {
                 $error = 'Please select a valid role.';
             } elseif ($isActive === null) {
                 $error = 'Please choose whether the user is active or inactive.';
@@ -79,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Email cannot be empty when updating a user.';
             } elseif (!filter_var($submitted['email'], FILTER_VALIDATE_EMAIL)) {
                 $error = 'Please provide a valid email address.';
-            } elseif (!in_array((string) $submitted['role_id'], array_map('strval', $allowedRoleIds), true)) {
+            } elseif (!in_array((string) $submitted['role_id'], $allowedRoleIds, true)) {
                 $error = 'Please select a valid role.';
             } elseif ($isActive === null) {
                 $error = 'Please choose whether the user is active or inactive.';
@@ -142,11 +177,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         } elseif ($action === 'delete') {
-            if ($submitted['user_id'] === '') { 
-                $error = 'Please provide the User ID to delete.'; 
-            } else { 
-                $stmt = $pdo->prepare('DELETE FROM users WHERE user_id = :id'); 
-                $stmt->execute([':id' => $submitted['user_id']]); 
+            if ($submitted['user_id'] === '') {
+                $error = 'Please provide the User ID to delete.';
+            } else {
+                $stmt = $pdo->prepare('DELETE FROM users WHERE user_id = :id');
+                $stmt->execute([':id' => $submitted['user_id']]);
 
               if ($stmt->rowCount() === 0) {
                     $error = 'User not found or already deleted.';
@@ -174,7 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
              }
 } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
+        if ($pdo && $pdo->inTransaction()) {
             $pdo->rollBack();
         }
         $error = format_db_error($e, 'users table');
@@ -183,8 +218,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $users = [];
 try {
-    $stmt = $pdo->query('SELECT u.user_id, u.full_name, u.email, u.is_active, u.created_at, r.role_name, r.role_id FROM users u LEFT JOIN user_roles ur ON ur.user_id = u.user_id LEFT JOIN roles r ON r.role_id = ur.role_id ORDER BY u.user_id');
-    $users = $stmt->fetchAll();
+    if ($pdo) {
+        $stmt = $pdo->query('SELECT u.user_id, u.full_name, u.email, u.is_active, u.created_at, r.role_name, r.role_id FROM users u LEFT JOIN user_roles ur ON ur.user_id = u.user_id LEFT JOIN roles r ON r.role_id = ur.role_id ORDER BY u.user_id');
+        $users = $stmt->fetchAll();
+    }
 } catch (Throwable $e) {
     $error = $error ?: format_db_error($e, 'users and roles tables');
 }
@@ -226,33 +263,74 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
   <main style="padding:24px; display:grid; gap:20px;">
     <div class="form-container">
       <h3 style="margin-top:0; color:var(--secondary);">User Management</h3>
-   <?php if ($error): ?> 
-        <div class="alert" style="color: var(--secondary); margin-bottom:12px;"> 
-          <?php echo safe($error); ?> 
-        </div> 
-      <?php elseif ($success): ?> 
+   <?php if ($error): ?>
         <div class="alert" style="color: var(--secondary); margin-bottom:12px;">
-          <?php echo safe($success); ?> 
-        </div> 
-      <?php endif; ?> 
+          <?php echo safe($error); ?>
+        </div>
+      <?php elseif ($success): ?>
+        <div class="alert" style="color: var(--secondary); margin-bottom:12px;">
+          <?php echo safe($success); ?>
+        </div>
+      <?php endif; ?>
 
   <form method="POST" action="users.php">
-       <div class="title">Users</div>
-    <div class="links">
-      <div class="user-chip">
-        <span class="name"><?php echo safe($currentUser['username']); ?></span>
-        <span class="role"><?php echo strtoupper(safe($currentUser['role'])); ?></span>
-      </div>
-      <a href="./home.php">Home</a>
-      <a class="logout-icon" href="./logout.php" aria-label="Logout">
-        <div class="actions">
-          <button class="btn btn-save" type="submit" name="action" value="create">Create New User</button>
-          <button class="btn btn-neutral" type="submit" name="action" value="view">View</button>
-          <button class="btn btn-neutral" type="submit" name="action" value="update">Update</button>
-          <button class="btn btn-delete" type="submit" name="action" value="delete" onclick="return confirm('Are you sure you want to delete this user?');">Delete</button>
-        </div>
-       </form>
-    </div>
+       <div class="form-row">
+         <div>
+           <label class="label" for="user_id">User</label>
+           <select id="user_id" name="user_id">
+             <option value="">Select a user</option>
+             <?php foreach ($users as $user): ?>
+               <option value="<?php echo safe($user['user_id']); ?>" <?php echo $userIdSelectValue == $user['user_id'] ? 'selected' : ''; ?>>
+                 <?php echo safe($user['full_name'] ?: $user['email']); ?>
+               </option>
+             <?php endforeach; ?>
+           </select>
+         </div>
+         <div>
+           <label class="label" for="full_name">Full Name</label>
+           <input id="full_name" name="full_name" type="text" value="<?php echo safe($submitted['full_name']); ?>" placeholder="Enter the user's full name" />
+         </div>
+       </div>
+
+       <div class="form-row">
+         <div>
+           <label class="label" for="email">Email</label>
+           <input id="email" name="email" type="email" value="<?php echo safe($submitted['email']); ?>" placeholder="Enter the user's email" />
+         </div>
+         <div>
+           <label class="label" for="password">Password</label>
+           <input id="password" name="password" type="password" value="<?php echo safe($submitted['password']); ?>" placeholder="Set or update password" />
+         </div>
+       </div>
+
+       <div class="form-row">
+         <div>
+           <label class="label" for="role_id">Role</label>
+           <select id="role_id" name="role_id">
+             <option value="">Select role</option>
+             <?php foreach ($roleOptions as $role): ?>
+               <option value="<?php echo safe($role['value']); ?>" <?php echo $submitted['role_id'] === $role['value'] ? 'selected' : ''; ?>>
+                 <?php echo safe($role['label']); ?>
+               </option>
+             <?php endforeach; ?>
+           </select>
+         </div>
+         <div>
+           <label class="label" for="is_active">Status</label>
+           <select id="is_active" name="is_active">
+             <option value="true" <?php echo $submitted['is_active'] === 'true' ? 'selected' : ''; ?>>Active</option>
+             <option value="false" <?php echo $submitted['is_active'] === 'false' ? 'selected' : ''; ?>>Inactive</option>
+           </select>
+         </div>
+       </div>
+
+       <div class="actions" style="margin-top: 12px;">
+         <button class="btn btn-save" type="submit" name="action" value="create">Create New User</button>
+         <button class="btn btn-neutral" type="submit" name="action" value="view">View</button>
+         <button class="btn btn-neutral" type="submit" name="action" value="update">Update</button>
+         <button class="btn btn-delete" type="submit" name="action" value="delete" onclick="return confirm('Are you sure you want to delete this user?');">Delete</button>
+       </div>
+      </form>
 
     <form method="POST" action="users.php">
       <div class="table-actions">
@@ -288,5 +366,3 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
   </main>
 </body>
 </html>
-
-
