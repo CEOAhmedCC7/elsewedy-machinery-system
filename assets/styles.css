@@ -132,6 +132,36 @@ img.logo {
   margin-bottom: 16px;
 }
 
+.filter-form {
+  display: grid;
+  gap: 12px;
+  align-items: end;
+  margin-top: 10px;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.filter-form input[type="text"],
+.filter-form input[type="email"],
+.filter-form input[type="password"],
+.filter-form input[type="date"],
+.filter-form input[type="number"],
+.filter-form select,
+.filter-form textarea {
+  padding: 10px;
+}
+
+.filter-actions {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+
 .label {
   font-weight: 600;
   margin-bottom: 6px;
