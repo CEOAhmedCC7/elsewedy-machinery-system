@@ -2,9 +2,11 @@
 require_once __DIR__ . '/helpers.php';
 
 $currentUser = require_login();
+$moduleCode = resolve_module_code('PROJECTS');
 
 $error = '';
 $success = '';
+$modalOverride = null;
 
 $pdo = null;
 try {
@@ -35,9 +37,23 @@ $selectedIds = array_map('intval', (array) ($_POST['selected_ids'] ?? []));
 
 if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+    $permissionError = enforce_action_permission(
+        $currentUser,
+        $moduleCode ?? 'PROJECTS',
+        $action,
+        [
+            'create' => 'create',
+            'update' => 'update',
+            'delete' => 'delete',
+            'bulk_delete' => 'delete',
+        ]
+    );
 
     try {
-        if ($action === 'create') {
+        if ($permissionError) {
+            $modalOverride = permission_denied_modal();
+            $error = $permissionError;
+        } elseif ($action === 'create') {
             if ($submitted['project_name'] === '') {
                 throw new RuntimeException('Project name is required.');
             }
@@ -139,14 +155,9 @@ if ($pdo && $loadProjectId) {
 }
 
 $filters = [
-    'project_id' => trim($_GET['filter_project_id'] ?? ''),
     'project_name' => trim($_GET['filter_project_name'] ?? ''),
     'cost_center_no' => trim($_GET['filter_cost_center_no'] ?? ''),
     'po_number' => trim($_GET['filter_po_number'] ?? ''),
-    'customer_id' => trim($_GET['filter_customer_id'] ?? ''),
-    'contract_date' => trim($_GET['filter_contract_date'] ?? ''),
-    'expected_end_date' => trim($_GET['filter_expected_end_date'] ?? ''),
-    'actual_end_date' => trim($_GET['filter_actual_end_date'] ?? ''),
     'business_line_id' => trim($_GET['filter_business_line_id'] ?? ''),
 ];
 
@@ -157,10 +168,6 @@ if ($pdo) {
         $conditions = [];
         $params = [];
 
-        if ($filters['project_id'] !== '') {
-            $conditions[] = 'p.project_id = :filter_id';
-            $params[':filter_id'] = $filters['project_id'];
-        }
         if ($filters['project_name'] !== '') {
             $conditions[] = 'LOWER(p.project_name) LIKE :filter_name';
             $params[':filter_name'] = '%' . strtolower($filters['project_name']) . '%';
@@ -172,22 +179,6 @@ if ($pdo) {
         if ($filters['po_number'] !== '') {
             $conditions[] = 'LOWER(p.po_number) LIKE :filter_po';
             $params[':filter_po'] = '%' . strtolower($filters['po_number']) . '%';
-        }
-        if ($filters['customer_id'] !== '') {
-            $conditions[] = 'p.customer_id = :filter_customer';
-            $params[':filter_customer'] = $filters['customer_id'];
-        }
-        if ($filters['contract_date'] !== '') {
-            $conditions[] = 'p.contract_date = :filter_contract';
-            $params[':filter_contract'] = $filters['contract_date'];
-        }
-        if ($filters['expected_end_date'] !== '') {
-            $conditions[] = 'p.expected_end_date = :filter_expected';
-            $params[':filter_expected'] = $filters['expected_end_date'];
-        }
-        if ($filters['actual_end_date'] !== '') {
-            $conditions[] = 'p.actual_end_date = :filter_actual';
-            $params[':filter_actual'] = $filters['actual_end_date'];
         }
         if ($filters['business_line_id'] !== '') {
             $conditions[] = 'p.business_line_id = :filter_business';
@@ -233,10 +224,10 @@ if ($pdo) {
     <div class="message-modal is-visible" role="alertdialog" aria-live="assertive" aria-label="Projects notification">
       <div class="message-dialog <?php echo $error ? 'is-error' : 'is-success'; ?>">
         <div class="message-dialog__header">
-          <span class="message-title"><?php echo $error ? 'Action needed' : 'Success'; ?></span>
+          <span class="message-title"><?php echo $modalOverride['title'] ?? ($error ? 'Action needed' : 'Success'); ?></span>
           <button class="message-close" type="button" aria-label="Close message">&times;</button>
         </div>
-        <p class="message-body"><?php echo safe($error !== '' ? $error : $success); ?></p>
+        <p class="message-body"><?php echo safe($modalOverride['subtitle'] ?? ($error !== '' ? $error : $success)); ?></p>
       </div>
     </div>
   <?php endif; ?>
@@ -245,12 +236,9 @@ if ($pdo) {
       <h3 style="margin-top:0; color:var(--secondary);">Create, View, Update or Delete Projects</h3>
 
       <form method="POST" action="projects.php" id="project-form">
+        <input id="project-id" name="project_id" type="hidden" value="<?php echo safe($submitted['project_id']); ?>" />
         <div class="form-row">
-          <div>
-            <label class="label" for="project-id">Project ID (auto-generated)</label>
-            <input id="project-id" name="project_id" type="text" value="<?php echo safe($submitted['project_id']); ?>" readonly />
-          </div>
-          <div>
+          <div style="flex:1;">
             <label class="label" for="project-name">Project Name</label>
             <input id="project-name" name="project_name" type="text" placeholder="Wind Farm Expansion" value="<?php echo safe($submitted['project_name']); ?>" />
           </div>
@@ -311,74 +299,45 @@ if ($pdo) {
         </div>
       </form>
 
-      <form method="GET" action="projects.php" class="filter-form">
-        <table class="filter-table">
-          <tbody>
-            <tr>
-              <td><label class="label" for="filter_project_id">Filter by ID</label></td>
-              <td><label class="label" for="filter_project_name">Filter by Name</label></td>
-              <td><label class="label" for="filter_cost_center_no">Filter by Cost Center</label></td>
-              <td><label class="label" for="filter_po_number">Filter by PO</label></td>
-              <td><label class="label" for="filter_customer_id">Filter by Customer</label></td>
-            </tr>
-            <tr>
-              <td class="filter-cell">
-                <input type="number" id="filter_project_id" name="filter_project_id" value="<?php echo safe($filters['project_id']); ?>" placeholder="Project ID" />
-              </td>
-              <td class="filter-cell">
-                <input type="text" id="filter_project_name" name="filter_project_name" value="<?php echo safe($filters['project_name']); ?>" placeholder="Project name" />
-              </td>
-              <td class="filter-cell">
-                <input type="text" id="filter_cost_center_no" name="filter_cost_center_no" value="<?php echo safe($filters['cost_center_no']); ?>" placeholder="Cost center" />
-              </td>
-              <td class="filter-cell">
-                <input type="text" id="filter_po_number" name="filter_po_number" value="<?php echo safe($filters['po_number']); ?>" placeholder="PO number" />
-              </td>
-              <td class="filter-cell">
-                <select id="filter_customer_id" name="filter_customer_id">
-                  <option value="">All customers</option>
-                  <?php foreach ($customerOptions as $option): ?>
-                    <option value="<?php echo safe($option['value']); ?>" <?php echo $filters['customer_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-                  <?php endforeach; ?>
-                </select>
-              </td>
-            </tr>
-            <tr>
-              <td><label class="label" for="filter_contract_date">Filter by Contract Date</label></td>
-              <td><label class="label" for="filter_expected_end_date">Filter by Expected End</label></td>
-              <td><label class="label" for="filter_actual_end_date">Filter by Actual End</label></td>
-              <td><label class="label" for="filter_business_line_id">Filter by Business Line</label></td>
-              <td><label class="label" for="filter_actions">Actions</label></td>
-            </tr>
-            <tr>
-              <td class="filter-cell">
-                <input type="date" id="filter_contract_date" name="filter_contract_date" value="<?php echo safe($filters['contract_date']); ?>" />
-              </td>
-              <td class="filter-cell">
-                <input type="date" id="filter_expected_end_date" name="filter_expected_end_date" value="<?php echo safe($filters['expected_end_date']); ?>" />
-              </td>
-              <td class="filter-cell">
-                <input type="date" id="filter_actual_end_date" name="filter_actual_end_date" value="<?php echo safe($filters['actual_end_date']); ?>" />
-              </td>
-              <td class="filter-cell">
-                <select id="filter_business_line_id" name="filter_business_line_id">
-                  <option value="">All business lines</option>
-                  <?php foreach ($businessLineOptions as $option): ?>
-                    <option value="<?php echo safe($option['value']); ?>" <?php echo $filters['business_line_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-                  <?php endforeach; ?>
-                </select>
-              </td>
-              <td class="filter-actions-cell" rowspan="2">
-                <div class="actions filter-actions">
-                  <button class="btn btn-update" type="submit">Apply Filters</button>
-                  <a class="btn btn-delete" href="projects.php" style="text-decoration:none;">Reset</a>
-                  <button class="btn btn-delete" type="submit" form="projects-table-form" name="action" value="bulk_delete" onclick="return confirm('Delete selected projects?');">Delete Selected</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </form>
+        <form method="GET" action="projects.php" class="filter-form">
+          <table class="filter-table">
+            <tbody>
+              <tr>
+                <td><label class="label" for="filter_project_name">Filter by Name</label></td>
+                <td><label class="label" for="filter_cost_center_no">Filter by Cost Center</label></td>
+                <td><label class="label" for="filter_po_number">Filter by PO</label></td>
+                <td><label class="label" for="filter_business_line_id">Filter by Business Line</label></td>
+                <td><label class="label" for="filter_actions">Actions</label></td>
+              </tr>
+              <tr>
+                <td class="filter-cell">
+                  <input type="text" id="filter_project_name" name="filter_project_name" value="<?php echo safe($filters['project_name']); ?>" placeholder="Project name" />
+                </td>
+                <td class="filter-cell">
+                  <input type="text" id="filter_cost_center_no" name="filter_cost_center_no" value="<?php echo safe($filters['cost_center_no']); ?>" placeholder="Cost center" />
+                </td>
+                <td class="filter-cell">
+                  <input type="text" id="filter_po_number" name="filter_po_number" value="<?php echo safe($filters['po_number']); ?>" placeholder="PO number" />
+                </td>
+                <td class="filter-cell">
+                  <select id="filter_business_line_id" name="filter_business_line_id">
+                    <option value="">All business lines</option>
+                    <?php foreach ($businessLineOptions as $option): ?>
+                      <option value="<?php echo safe($option['value']); ?>" <?php echo $filters['business_line_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </td>
+                <td class="filter-actions-cell" rowspan="1">
+                  <div class="actions filter-actions">
+                    <button class="btn btn-update" type="submit">Apply Filters</button>
+                    <a class="btn btn-delete" href="projects.php" style="text-decoration:none;">Reset</a>
+                    <button class="btn btn-delete" type="submit" form="projects-table-form" name="action" value="bulk_delete" onclick="return confirm('Delete selected projects?');">Delete Selected</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </form>
 
       <form method="POST" action="projects.php" id="projects-table-form">
         <input type="hidden" name="project_id" id="table-project-id" value="" />
@@ -387,7 +346,6 @@ if ($pdo) {
             <thead>
               <tr>
                 <th><input type="checkbox" onclick="toggleAll(this, 'projects-table')" aria-label="Select all projects" /></th>
-                <th>ID</th>
                 <th>Name</th>
                 <th>Cost Center</th>
                 <th>Customer</th>
@@ -404,7 +362,6 @@ if ($pdo) {
                 <?php foreach ($projects as $project): ?>
                   <tr>
                     <td><input type="checkbox" name="selected_ids[]" value="<?php echo safe($project['project_id']); ?>" /></td>
-                    <td><?php echo safe($project['project_id']); ?></td>
                     <td><?php echo safe($project['project_name']); ?></td>
                     <td><?php echo safe($project['cost_center_no']); ?></td>
                     <td><?php echo safe($project['customer_name'] ?: $project['customer_id']); ?></td>
@@ -444,7 +401,7 @@ if ($pdo) {
                   </tr>
                 <?php endforeach; ?>
               <?php else: ?>
-                <tr><td colspan="11">No projects recorded yet.</td></tr>
+                <tr><td colspan="10">No projects recorded yet.</td></tr>
               <?php endif; ?>
             </tbody>
           </table>
