@@ -282,22 +282,16 @@ input:focus, select:focus, textarea:focus {
   color: white;
 }
 
-.btn-save { background: var(--accent-success); color: #fff; }
-.btn-delete { background: var(--accent-danger); color: #fff; }
+.btn-save { background: var(--accent-success); color: #fff; }␊
+.btn-delete { background: var(--secondary); color: #fff; border: 1.5px solid var(--secondary); }
 .btn-neutral { background: #f1f3f5; color: #222; }
 .btn-update { background: #0d3b66; color: #fff; }
 .btn-view { background: #17a2b8; color: #fff; }
 .btn-clear { background: #e9ecef; color: #222; }
 .btn-filter {
-  background: var(--accent-success);
+  background: var(--secondary);
   color: #fff;
-  border: 1.5px solid var(--accent-success);
-}
-
-.btn-filter:hover {
-  background: #fff;
-  color: #000;
-  border-color: var(--accent-success);
+  border: 1.5px solid var(--secondary);
 }
 
 .btn-reset {
@@ -306,10 +300,12 @@ input:focus, select:focus, textarea:focus {
   border: 1.5px solid var(--secondary);
 }
 
-.btn-reset:hover {
-  background: #fff;
-  color: #000;
-  border-color: var(--secondary);
+.btn-filter:hover,
+.btn-reset:hover,
+.btn-delete:hover {
+  background: #a50f15;
+  color: #fff;
+  border-color: #a50f15;
 }
 
 .table-wrapper {
