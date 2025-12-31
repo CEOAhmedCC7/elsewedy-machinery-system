@@ -132,24 +132,12 @@ function normalize_module_card_image(string $rawImage): string
               $hasAnyPermission = !empty(array_filter($permissionSet));
               $canAccess = !$hasPermissionMap || $hasAnyPermission;
 
-              $rawImage = $module['img'] ?? '';
-              if (is_string($rawImage)) {
-                  $sanitizedImage = trim($rawImage, "{} \" ");
-              } elseif (is_array($rawImage)) {
-                  $sanitizedImage = trim((string) (reset($rawImage) ?: ''));
-              } else {
-                  $sanitizedImage = '';
+               $rawImage = $module['img'] ?? '';
+              if (is_array($rawImage)) {
+                  $rawImage = (string) (reset($rawImage) ?: '');
               }
 
-              if ($sanitizedImage !== '') {
-                  $hasProtocol = preg_match('/^https?:\/\//i', $sanitizedImage) === 1;
-                  $hasLeadingSlash = strncmp($sanitizedImage, '/', 1) === 0 || strncmp($sanitizedImage, './', 2) === 0;
-                  $imageSrc = $hasProtocol || $hasLeadingSlash
-                      ? $sanitizedImage
-                      : './assets/' . ltrim($sanitizedImage, '/');
-              } else {
-                  $imageSrc = './assets/Wallpaper.png';
-              }
+              $imageSrc = normalize_module_card_image((string) $rawImage);
               $moduleLink = trim($module['link'] ?? $module['href'] ?? '');
               $description = $module['module_name'] ?? 'Module';
               $cardClasses = 'module-card' . ($canAccess && $moduleLink !== '' ? ' module-card--link' : '') . (!$canAccess ? ' module-card--disabled' : '');

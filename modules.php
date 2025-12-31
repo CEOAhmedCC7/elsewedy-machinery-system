@@ -279,7 +279,7 @@ $modules = $pdo ? fetch_table('modules', 'module_name') : [];
           <br>
           <!-- <p class="muted" style="margin-top:4px;">Manage the modules list that powers the home dashboard and permissions grid.</p> -->
         </div>
-        <div class="status-pill neutral">CRUD Ready</div>
+        <!-- <div class="status-pill neutral">CRUD Ready</div> -->
       </div>
 
       <form method="post" class="stacked" autocomplete="off" enctype="multipart/form-data">
