@@ -6,78 +6,83 @@ $error = '';
 $success = '';
 
 $userIdPosted = trim($_POST['user_id'] ?? '');
-$userIdCustom = trim($_POST['user_id_custom'] ?? '');
-$usernamePosted = trim($_POST['username'] ?? '');
-$usernameCustom = trim($_POST['username_custom'] ?? '');
-
-$submitted = [
-    'user_id' => $userIdPosted === '__custom__' ? $userIdCustom : $userIdPosted,
-    'username' => $usernamePosted === '__custom__' ? $usernameCustom : $usernamePosted,
-    'password' => (string) ($_POST['password'] ?? ''),
-    'role' => $_POST['role'] ?? 'viewer',
-    'status' => $_POST['status'] ?? 'active',
-];
-$selectedIds = array_filter(array_map('trim', (array) ($_POST['selected_ids'] ?? [])));
-
-$allowedRoles = ['admin', 'project_manager', 'finance', 'viewer'];
-$allowedStatuses = ['active', 'inactive'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
-    $pdo = get_pdo();
 
     try {
         if ($action === 'create') {
-            if ($usernamePosted === '__custom__' && $submitted['username'] === '') {
-                $error = 'Please enter a username for the new account.';
-            } elseif ($userIdPosted === '__custom__' && $submitted['user_id'] === '') {
-                $error = 'Please enter a custom User ID or choose Auto-generate.';
-            } elseif ($submitted['username'] === '' || $submitted['password'] === '') {
-                $error = 'Username and password are required to create a user.';
-            } elseif (!in_array($submitted['role'], $allowedRoles, true) || !in_array($submitted['status'], $allowedStatuses, true)) {
-                $error = 'Please select a valid role and status.';
-            } elseif (strlen($submitted['username']) < 3) {
-                $error = 'Username must be at least 3 characters long.';
+            $isActive = filter_var($submitted['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+            if ($submitted['full_name'] === '') {
+                $error = 'Please enter a full name for the new account.';
+            } elseif ($submitted['email'] === '') {
+                $error = 'Please enter an email address.';
+            } elseif (!filter_var($submitted['email'], FILTER_VALIDATE_EMAIL)) {
+                $error = 'Please provide a valid email address.';
+            } elseif ($submitted['password'] === '') {
+                $error = 'Password is required to create a user.';
+            } elseif (!in_array((string) $submitted['role_id'], array_map('strval', $allowedRoleIds), true)) {
+                $error = 'Please select a valid role.';
+            } elseif ($isActive === null) {
+                $error = 'Please choose whether the user is active or inactive.';
             } elseif (strlen($submitted['password']) < 8) {
                 $error = 'Password must be at least 8 characters long.';
             } else {
-                $userId = $submitted['user_id'] !== '' ? $submitted['user_id'] : 'usr_' . bin2hex(random_bytes(4));
-
-                $exists = $pdo->prepare('SELECT 1 FROM users WHERE user_id = :id OR username = :username');
+                $exists = $pdo->prepare('SELECT 1 FROM users WHERE email = :email');
                 $exists->execute([
-                    ':id' => $userId,
-                    ':username' => $submitted['username'],
+                    ':email' => $submitted['email'],
                 ]);
 
                 if ($exists->fetchColumn()) {
-                    $error = 'A user with this ID or username already exists.';
+                    $error = 'A user with this email already exists.';
                 } else {
-                    $stmt = $pdo->prepare('INSERT INTO users (user_id, username, password_hash, role, status) VALUES (:id, :username, :hash, :role, :status)');
+                    $pdo->beginTransaction();
+
+                    $stmt = $pdo->prepare('INSERT INTO users (full_name, email, password_hash, is_active) VALUES (:name, :email, :hash, :active)');
                     $stmt->execute([
-                        ':id' => $userId,
-                        ':username' => $submitted['username'],
-                        ':hash' => password_hash($submitted['password'], PASSWORD_DEFAULT),
-                        ':role' => $submitted['role'],
-                        ':status' => $submitted['status'],
+                        ':name' => $submitted['full_name'],
+                        ':email' => $submitted['email'],
+                        ':hash' => $submitted['password'],
+                        ':active' => $isActive,
                     ]);
+
+                    $newUserId = (int) $pdo->lastInsertId('users_user_id_seq');
+
+                    $roleStmt = $pdo->prepare('INSERT INTO user_roles (user_id, role_id) VALUES (:user_id, :role_id)');
+                    $roleStmt->execute([
+                        ':user_id' => $newUserId,
+                        ':role_id' => $submitted['role_id'],
+                    ]);
+
+                    $pdo->commit();
 
                     $success = 'User created successfully.';
                     $submitted = [
                         'user_id' => '',
-                        'username' => '',
+                        'full_name' => '',
+                        'email' => '',
                         'password' => '',
-                        'role' => 'viewer',
-                        'status' => 'active',
+                        'role_id' => '',
+                        'is_active' => 'true',
                     ];
                 }
             }
         } elseif ($action === 'update') {
+            $isActive = filter_var($submitted['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
             if ($submitted['user_id'] === '') {
                 $error = 'Please provide the User ID to update.';
-            } elseif ($submitted['username'] === '') {
-                $error = 'Username cannot be empty when updating a user.';
-            } elseif (!in_array($submitted['role'], $allowedRoles, true) || !in_array($submitted['status'], $allowedStatuses, true)) {
-                $error = 'Please select a valid role and status.';
+            } elseif ($submitted['full_name'] === '') {
+                $error = 'Full name cannot be empty when updating a user.';
+            } elseif ($submitted['email'] === '') {
+                $error = 'Email cannot be empty when updating a user.';
+            } elseif (!filter_var($submitted['email'], FILTER_VALIDATE_EMAIL)) {
+                $error = 'Please provide a valid email address.';
+            } elseif (!in_array((string) $submitted['role_id'], array_map('strval', $allowedRoleIds), true)) {
+                $error = 'Please select a valid role.';
+            } elseif ($isActive === null) {
+                $error = 'Please choose whether the user is active or inactive.';
             } else {
                 $check = $pdo->prepare('SELECT 1 FROM users WHERE user_id = :id');
                 $check->execute([':id' => $submitted['user_id']]);
@@ -85,11 +90,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$check->fetchColumn()) {
                     $error = 'User not found. Please check the User ID.';
                 } else {
+                    $pdo->beginTransaction();
+
                     $params = [
                         ':id' => $submitted['user_id'],
-                        ':username' => $submitted['username'],
-                        ':role' => $submitted['role'],
-                        ':status' => $submitted['status'],
+                        ':full_name' => $submitted['full_name'],
+                        ':email' => $submitted['email'],
+                        ':is_active' => $isActive,
                     ];
 
                     $passwordSql = '';
@@ -98,11 +105,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             throw new RuntimeException('Password must be at least 8 characters long.');
                         }
                         $passwordSql = ', password_hash = :hash';
-                        $params[':hash'] = password_hash($submitted['password'], PASSWORD_DEFAULT);
+                        $params[':hash'] = $submitted['password'];
                     }
 
-                    $stmt = $pdo->prepare("UPDATE users SET username = :username, role = :role, status = :status{$passwordSql} WHERE user_id = :id");
+                    $stmt = $pdo->prepare("UPDATE users SET full_name = :full_name, email = :email, is_active = :is_active{$passwordSql} WHERE user_id = :id");
                     $stmt->execute($params);
+
+                    $pdo->prepare('DELETE FROM user_roles WHERE user_id = :user_id')->execute([':user_id' => $submitted['user_id']]);
+                    $pdo->prepare('INSERT INTO user_roles (user_id, role_id) VALUES (:user_id, :role_id)')->execute([
+                        ':user_id' => $submitted['user_id'],
+                        ':role_id' => $submitted['role_id'],
+                    ]);
+
+                    $pdo->commit();
 
                     $success = 'User updated successfully.';
                 }
@@ -111,14 +126,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($submitted['user_id'] === '') {
                 $error = 'Please enter a User ID to view details.';
             } else {
-                $stmt = $pdo->prepare('SELECT user_id, username, role, status FROM users WHERE user_id = :id');
+                $stmt = $pdo->prepare('SELECT u.user_id, u.full_name, u.email, u.is_active, r.role_id FROM users u LEFT JOIN user_roles ur ON ur.user_id = u.user_id LEFT JOIN roles r ON r.role_id = ur.role_id WHERE u.user_id = :id');
                 $stmt->execute([':id' => $submitted['user_id']]);
                 $found = $stmt->fetch();
 
                 if ($found) {
-                    $submitted['username'] = $found['username'];
-                    $submitted['role'] = $found['role'];
-                    $submitted['status'] = $found['status'];
+                    $submitted['full_name'] = $found['full_name'];
+                    $submitted['email'] = $found['email'];
+                    $submitted['role_id'] = (string) $found['role_id'];
+                    $submitted['is_active'] = filter_var($found['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) === false ? 'false' : 'true';
                     $submitted['password'] = '';
                     $success = 'User loaded. You can update or delete this account.';
                } else {
@@ -132,16 +148,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare('DELETE FROM users WHERE user_id = :id'); 
                 $stmt->execute([':id' => $submitted['user_id']]); 
 
-                if ($stmt->rowCount() === 0) {
+              if ($stmt->rowCount() === 0) {
                     $error = 'User not found or already deleted.';
                 } else {
                     $success = 'User deleted successfully.';
                     $submitted = [
                         'user_id' => '',
-                        'username' => '',
+                        'full_name' => '',
+                        'email' => '',
                         'password' => '',
-                        'role' => 'viewer',
-                        'status' => 'active',
+                        'role_id' => '',
+                        'is_active' => 'true',
                     ];
                 }
             }
@@ -156,16 +173,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $success = $deleted . ' user(s) removed.';
             }
              }
-    } catch (Throwable $e) {
+} catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         $error = format_db_error($e, 'users table');
     }
 }
 
-$users = fetch_table('users', 'user_id');
+$users = [];
+try {
+    $stmt = $pdo->query('SELECT u.user_id, u.full_name, u.email, u.is_active, u.created_at, r.role_name, r.role_id FROM users u LEFT JOIN user_roles ur ON ur.user_id = u.user_id LEFT JOIN roles r ON r.role_id = ur.role_id ORDER BY u.user_id');
+    $users = $stmt->fetchAll();
+} catch (Throwable $e) {
+    $error = $error ?: format_db_error($e, 'users and roles tables');
+}
+
 $userIdOptions = array_column($users, 'user_id');
-$usernameOptions = array_values(array_unique(array_column($users, 'username')));
-$userIdSelectValue = $submitted['user_id'] === '' ? '' : (in_array($submitted['user_id'], $userIdOptions, true) ? $submitted['user_id'] : '__custom__');
-$usernameSelectValue = $submitted['username'] === '' ? '' : (in_array($submitted['username'], $usernameOptions, true) ? $submitted['username'] : '__custom__');
+$userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $submitted['user_id'] : '';
 
 ?>
 <!DOCTYPE html>
@@ -188,7 +213,6 @@ $usernameSelectValue = $submitted['username'] === '' ? '' : (in_array($submitted
         <span class="name"><?php echo safe($currentUser['username']); ?></span>
         <span class="role"><?php echo strtoupper(safe($currentUser['role'])); ?></span>
       </div>
-      <a href="./users-list.php">Copy Users</a>
       <a href="./home.php">Home</a>
       <a class="logout-icon" href="./logout.php" aria-label="Logout">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -213,52 +237,14 @@ $usernameSelectValue = $submitted['username'] === '' ? '' : (in_array($submitted
       <?php endif; ?> 
 
   <form method="POST" action="users.php">
-        <div class="form-row">
-     <div>
-            <label class="label" for="user-id">User ID</label>
-            <select id="user-id" name="user_id">
-              <option value="" <?php echo $userIdSelectValue === '' ? 'selected' : ''; ?>>Auto-generate</option>
-              <?php foreach ($userIdOptions as $option): ?>
-                <option value="<?php echo safe($option); ?>" <?php echo $userIdSelectValue === $option ? 'selected' : ''; ?>><?php echo safe($option); ?></option>
-              <?php endforeach; ?>
-              <option value="__custom__" <?php echo $userIdSelectValue === '__custom__' ? 'selected' : ''; ?>>Custom ID...</option>
-            </select>
-            <input id="user-id-custom" name="user_id_custom" type="text" class="<?php echo $userIdSelectValue === '__custom__' ? '' : 'hidden'; ?>" placeholder="Enter a new ID" value="<?php echo safe($userIdSelectValue === '__custom__' ? $submitted['user_id'] : ''); ?>" />
-          </div>
-          <div>
-            <label class="label" for="username">Username</label>
-            <select id="username" name="username">
-              <option value="" <?php echo $usernameSelectValue === '' ? 'selected' : ''; ?>>Select an existing username</option>
-              <?php foreach ($usernameOptions as $option): ?>
-                <option value="<?php echo safe($option); ?>" <?php echo $usernameSelectValue === $option ? 'selected' : ''; ?>><?php echo safe($option); ?></option>
-              <?php endforeach; ?>
-              <option value="__custom__" <?php echo $usernameSelectValue === '__custom__' ? 'selected' : ''; ?>>Custom username...</option>
-            </select>
-            <input id="username-custom" name="username_custom" type="text" class="<?php echo $usernameSelectValue === '__custom__' ? '' : 'hidden'; ?>" placeholder="Type a new username" value="<?php echo safe($usernameSelectValue === '__custom__' ? $submitted['username'] : ''); ?>" />
-          </div>
-          <div>
-            <label class="label" for="password">Password</label>
-            <input id="password" name="password" type="password" placeholder="********" />
-          </div>
-        </div>
-        <div class="form-row">
-          <div>
-            <label class="label" for="role">Role</label>
-            <select id="role" name="role">
-              <?php foreach ($allowedRoles as $role): ?>
-                <option value="<?php echo safe($role); ?>" <?php echo $submitted['role'] === $role ? 'selected' : ''; ?>><?php echo ucwords(str_replace('_', ' ', $role)); ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div>
-            <label class="label" for="status">Status</label>
-            <select id="status" name="status">
-              <?php foreach ($allowedStatuses as $status): ?>
-                <option value="<?php echo safe($status); ?>" <?php echo $submitted['status'] === $status ? 'selected' : ''; ?>><?php echo ucwords($status); ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-       </div>
+       <div class="title">Users</div>
+    <div class="links">
+      <div class="user-chip">
+        <span class="name"><?php echo safe($currentUser['username']); ?></span>
+        <span class="role"><?php echo strtoupper(safe($currentUser['role'])); ?></span>
+      </div>
+      <a href="./home.php">Home</a>
+      <a class="logout-icon" href="./logout.php" aria-label="Logout">
         <div class="actions">
           <button class="btn btn-save" type="submit" name="action" value="create">Create New User</button>
           <button class="btn btn-neutral" type="submit" name="action" value="view">View</button>
@@ -272,13 +258,12 @@ $usernameSelectValue = $submitted['username'] === '' ? '' : (in_array($submitted
       <div class="table-actions">
         <div class="actions">
           <button class="btn btn-delete" type="submit" name="action" value="bulk_delete" onclick="return confirm('Delete selected users?');">Delete Selected</button>
-          <button class="btn btn-neutral" type="button" onclick="exportSelected('users-table')">Download Excel</button>
         </div>
       </div>
       <div class="table-wrapper">
-        <table id="users-table">
+         <table id="users-table">
           <thead>
-            <tr><th><input type="checkbox" onclick="toggleAll(this, 'users-table')" aria-label="Select all users" /></th><th>ID</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th></tr>
+            <tr><th><input type="checkbox" onclick="toggleAll(this, 'users-table')" aria-label="Select all users" /></th><th>ID</th><th>Full Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th></tr>
           </thead>
           <tbody>
              <?php if ($users): ?>
@@ -286,14 +271,15 @@ $usernameSelectValue = $submitted['username'] === '' ? '' : (in_array($submitted
                 <tr>
                   <td><input type="checkbox" name="selected_ids[]" value="<?php echo safe($user['user_id']); ?>" /></td>
                   <td><?php echo safe($user['user_id']); ?></td>
-                  <td><?php echo safe($user['username']); ?></td>
-                  <td><?php echo safe($user['role']); ?></td>
-                  <td><?php echo safe($user['status']); ?></td>
+                  <td><?php echo safe($user['full_name']); ?></td>
+                  <td><?php echo safe($user['email']); ?></td>
+                  <td><?php echo safe($user['role_name'] ?? 'Unassigned'); ?></td>
+                  <td><?php echo filter_var($user['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) === false ? 'Inactive' : 'Active'; ?></td>
                   <td><?php echo safe($user['created_at']); ?></td>
                 </tr>
               <?php endforeach; ?>
             <?php else: ?>
-              <tr><td colspan="6">No users recorded yet.</td></tr>
+              <tr><td colspan="7">No users recorded yet.</td></tr>
             <?php endif; ?>
         </tbody>
         </table>
@@ -302,11 +288,5 @@ $usernameSelectValue = $submitted['username'] === '' ? '' : (in_array($submitted
   </main>
 </body>
 </html>
-
-
-
-
-
-
 
 
