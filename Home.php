@@ -47,6 +47,29 @@ if (!$modules) {
         ],
     ];
 }
+
+function normalize_module_card_image(string $rawImage): string
+{
+    $sanitizedImage = trim($rawImage, "{} \" ");
+
+    if ($sanitizedImage === '') {
+        return './assets/Wallpaper.png';
+    }
+
+    $hasProtocol = preg_match('/^https?:\/\//i', $sanitizedImage) === 1;
+    $hasLeadingSlash = strncmp($sanitizedImage, '/', 1) === 0 || strncmp($sanitizedImage, './', 2) === 0;
+    $startsWithAssetsDir = strncmp($sanitizedImage, 'assets/', 7) === 0;
+
+    if ($hasProtocol || $hasLeadingSlash) {
+        return $sanitizedImage;
+    }
+
+    if ($startsWithAssetsDir) {
+        return './' . $sanitizedImage;
+    }
+
+    return './assets/' . ltrim($sanitizedImage, '/');
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
