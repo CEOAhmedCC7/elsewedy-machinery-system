@@ -216,10 +216,38 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+$filters = [
+    'status' => $_GET['filter_status'] ?? '',
+    'role_id' => trim($_GET['filter_role'] ?? ''),
+    'user_id' => trim($_GET['filter_user_id'] ?? ''),
+];
+
 $users = [];
 try {
     if ($pdo) {
-        $stmt = $pdo->query('SELECT u.user_id, u.full_name, u.email, u.is_active, u.created_at, r.role_name, r.role_id FROM users u LEFT JOIN user_roles ur ON ur.user_id = u.user_id LEFT JOIN roles r ON r.role_id = ur.role_id ORDER BY u.user_id');
+        $conditions = [];
+        $params = [];
+
+        if ($filters['user_id'] !== '') {
+            $conditions[] = 'u.user_id = :filter_user_id';
+            $params[':filter_user_id'] = $filters['user_id'];
+        }
+
+        if ($filters['status'] === 'active') {
+            $conditions[] = 'u.is_active = true';
+        } elseif ($filters['status'] === 'inactive') {
+            $conditions[] = 'u.is_active = false';
+        }
+
+        if ($filters['role_id'] !== '') {
+            $conditions[] = 'r.role_id = :filter_role_id';
+            $params[':filter_role_id'] = $filters['role_id'];
+        }
+
+        $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
+        $sql = "SELECT u.user_id, u.full_name, u.email, u.is_active, u.created_at, r.role_name, r.role_id FROM users u LEFT JOIN user_roles ur ON ur.user_id = u.user_id LEFT JOIN roles r ON r.role_id = ur.role_id {$whereSql} ORDER BY u.user_id";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
         $users = $stmt->fetchAll();
     }
 } catch (Throwable $e) {
@@ -273,7 +301,7 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
         </div>
       <?php endif; ?>
 
-  <form method="POST" action="users.php">
+  <form method="POST" action="users.php" id="user-form">
        <div class="form-row">
          <div>
            <label class="label" for="user_id">User</label>
@@ -316,7 +344,7 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
            </select>
          </div>
          <div>
-           <label class="label" for="is_active">Status</label>
+ <label class="label" for="is_active">Status</label>
            <select id="is_active" name="is_active">
              <option value="true" <?php echo $submitted['is_active'] === 'true' ? 'selected' : ''; ?>>Active</option>
              <option value="false" <?php echo $submitted['is_active'] === 'false' ? 'selected' : ''; ?>>Inactive</option>
@@ -329,8 +357,39 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
          <button class="btn btn-neutral" type="submit" name="action" value="view">View</button>
          <button class="btn btn-neutral" type="submit" name="action" value="update">Update</button>
          <button class="btn btn-delete" type="submit" name="action" value="delete" onclick="return confirm('Are you sure you want to delete this user?');">Delete</button>
+          <button class="btn btn-neutral" type="button" id="clear-fields">Clear Fields</button>
        </div>
       </form>
+
+    <form method="GET" action="users.php" class="form-row" style="align-items:flex-end; gap:12px;">
+      <div>
+        <label class="label" for="filter_user_id">Filter by ID</label>
+        <input type="number" id="filter_user_id" name="filter_user_id" value="<?php echo safe($filters['user_id']); ?>" placeholder="User ID" />
+      </div>
+      <div>
+        <label class="label" for="filter_role">Filter by Role</label>
+        <select id="filter_role" name="filter_role">
+          <option value="">All roles</option>
+          <?php foreach ($roleOptions as $role): ?>
+            <option value="<?php echo safe($role['value']); ?>" <?php echo $filters['role_id'] === $role['value'] ? 'selected' : ''; ?>>
+              <?php echo safe($role['label']); ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div>
+        <label class="label" for="filter_status">Filter by Status</label>
+        <select id="filter_status" name="filter_status">
+          <option value="">All statuses</option>
+          <option value="active" <?php echo $filters['status'] === 'active' ? 'selected' : ''; ?>>Active</option>
+          <option value="inactive" <?php echo $filters['status'] === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
+        </select>
+      </div>
+      <div class="actions" style="margin:0;">
+        <button class="btn btn-neutral" type="submit">Apply Filters</button>
+        <a class="btn btn-neutral" href="users.php" style="text-decoration:none;">Reset</a>
+      </div>
+    </form>
 
     <form method="POST" action="users.php">
       <div class="table-actions">
@@ -362,7 +421,72 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
         </tbody>
         </table>
       </div>
-      </form>
+  </form>
   </main>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const userData = <?php echo json_encode(array_map(static fn ($user) => [
+          'user_id' => $user['user_id'],
+          'full_name' => $user['full_name'],
+          'email' => $user['email'],
+          'role_id' => $user['role_id'],
+          'is_active' => filter_var($user['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) === false ? 'false' : 'true',
+      ], $users), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+
+      const userMap = new Map(userData.map((user) => [String(user.user_id), user]));
+
+      const userSelect = document.getElementById('user_id');
+      const fullNameInput = document.getElementById('full_name');
+      const emailInput = document.getElementById('email');
+      const passwordInput = document.getElementById('password');
+      const roleSelect = document.getElementById('role_id');
+      const statusSelect = document.getElementById('is_active');
+      const clearButton = document.getElementById('clear-fields');
+      const form = document.getElementById('user-form');
+
+      const resetFields = () => {
+        userSelect.value = '';
+        fullNameInput.value = '';
+        emailInput.value = '';
+        passwordInput.value = '';
+        roleSelect.value = '';
+        statusSelect.value = 'true';
+      };
+
+      const populateFields = (userId) => {
+        const user = userMap.get(String(userId));
+        if (!user) {
+          return;
+        }
+
+        fullNameInput.value = user.full_name || '';
+        emailInput.value = user.email || '';
+        passwordInput.value = '';
+        roleSelect.value = user.role_id ? String(user.role_id) : '';
+        statusSelect.value = user.is_active === 'false' ? 'false' : 'true';
+      };
+
+      userSelect.addEventListener('change', (event) => {
+        const { value } = event.target;
+        if (!value) {
+          resetFields();
+          return;
+        }
+        populateFields(value);
+      });
+
+      if (userSelect.value) {
+        populateFields(userSelect.value);
+      }
+
+      clearButton.addEventListener('click', () => {
+        resetFields();
+      });
+
+      form.addEventListener('submit', () => {
+        passwordInput.value = passwordInput.value.trim();
+      });
+    });
+  </script>
 </body>
 </html>
