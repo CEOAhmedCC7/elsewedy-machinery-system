@@ -64,8 +64,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Please choose a business line.');
             }
 
-            $stmt = $pdo->prepare('INSERT INTO projects (project_name, cost_center_no, po_number, customer_id, contract_date, expected_end_date, actual_end_date, business_line_id) VALUES (:name, NULLIF(:cost, \'\'), NULLIF(:po, \'\'), :customer, NULLIF(:contract, \'\'), NULLIF(:expected, \'\'), NULLIF(:actual, \'\'), :business)');
-            $stmt->execute([
+$stmt = $pdo->prepare('INSERT INTO projects (project_name, cost_center_no, po_number, customer_id, contract_date, expected_end_date, actual_end_date, business_line_id) VALUES (:name, NULLIF(:cost, \'\'), NULLIF(:po, \'\'), :customer, NULLIF(:contract, \'\')::date, NULLIF(:expected, \'\')::date, NULLIF(:actual, \'\')::date, :business)');            $stmt->execute([
                 ':name' => $submitted['project_name'],
                 ':cost' => $submitted['cost_center_no'],
                 ':po' => $submitted['po_number'],
@@ -93,8 +92,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Please choose a business line.');
             }
 
-            $stmt = $pdo->prepare('UPDATE projects SET project_name = :name, cost_center_no = NULLIF(:cost, \'\'), po_number = NULLIF(:po, \'\'), customer_id = :customer, contract_date = NULLIF(:contract, \'\'), expected_end_date = NULLIF(:expected, \'\'), actual_end_date = NULLIF(:actual, \'\'), business_line_id = :business WHERE project_id = :id');
-            $stmt->execute([
+ $stmt = $pdo->prepare('UPDATE projects SET project_name = :name, cost_center_no = NULLIF(:cost, \'\'), po_number = NULLIF(:po, \'\'), customer_id = :customer, contract_date = NULLIF(:contract, \'\')::date, expected_end_date = NULLIF(:expected, \'\')::date, actual_end_date = NULLIF(:actual, \'\')::date, business_line_id = :business WHERE project_id = :id');            $stmt->execute([
                 ':id' => $submitted['project_id'],
                 ':name' => $submitted['project_name'],
                 ':cost' => $submitted['cost_center_no'],
@@ -237,59 +235,61 @@ if ($pdo) {
 
       <form method="POST" action="projects.php" id="project-form">
         <input id="project-id" name="project_id" type="hidden" value="<?php echo safe($submitted['project_id']); ?>" />
-        <div class="form-row">
-          <div style="flex:1;">
-            <label class="label" for="project-name">Project Name</label>
-            <input id="project-name" name="project_name" type="text" placeholder="Wind Farm Expansion" value="<?php echo safe($submitted['project_name']); ?>" />
-          </div>
-        </div>
+ <table class="form-table" style="width:100%; border-collapse:separate; border-spacing:12px 8px;">
+          <tbody>
+            <tr>
+              <td style="vertical-align:top; width:50%;">
+                <label class="label" for="project-name">Project Name</label>
+                <input id="project-name" name="project_name" type="text" placeholder="Wind Farm Expansion" value="<?php echo safe($submitted['project_name']); ?>" />
+              </td>
+              <td style="vertical-align:top; width:50%;">
+                <label class="label" for="cost-center">Cost Center No</label>
+                <input id="cost-center" name="cost_center_no" type="text" placeholder="CC-1001" value="<?php echo safe($submitted['cost_center_no']); ?>" />
+              </td>
+            </tr>
+            <tr>
+              <td style="vertical-align:top;">
+                <label class="label" for="po-number">PO Number</label>
+                <input id="po-number" name="po_number" type="text" placeholder="PO-2025-01" value="<?php echo safe($submitted['po_number']); ?>" />
+              </td>
+              <td style="vertical-align:top;">
+                <label class="label" for="project-start">Contract Date</label>
+                <input id="project-start" name="contract_date" type="date" value="<?php echo safe($submitted['contract_date']); ?>" />
+              </td>
+            </tr>
+            <tr>
+              <td style="vertical-align:top;">
+                <label class="label" for="project-customer">Customer</label>
+                <select id="project-customer" name="customer_id">
+                  <option value="">-- Select Customer --</option>
+                  <?php foreach ($customerOptions as $option): ?>
+                    <option value="<?php echo safe($option['value']); ?>" <?php echo $submitted['customer_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </td>
+              <td style="vertical-align:top;">
+                <label class="label" for="project-end">Expected End</label>
+                <input id="project-end" name="expected_end_date" type="date" value="<?php echo safe($submitted['expected_end_date']); ?>" />
+              </td>
+            </tr>
+            <tr>
+              <td style="vertical-align:top;">
+                <label class="label" for="business-line">Business Line</label>
+                <select id="business-line" name="business_line_id">
+                  <option value="">-- Select Business Line --</option>
+                  <?php foreach ($businessLineOptions as $option): ?>
+                    <option value="<?php echo safe($option['value']); ?>" <?php echo $submitted['business_line_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </td>
+              <td style="vertical-align:top;">
+                <label class="label" for="project-actual-end">Actual End</label>
+                <input id="project-actual-end" name="actual_end_date" type="date" value="<?php echo safe($submitted['actual_end_date']); ?>" />
+              </td>
+            </tr>
+          </tbody>
+        </table>
 
-        <div class="form-row">
-          <div>
-            <label class="label" for="cost-center">Cost Center No</label>
-            <input id="cost-center" name="cost_center_no" type="text" placeholder="CC-1001" value="<?php echo safe($submitted['cost_center_no']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="po-number">PO Number</label>
-            <input id="po-number" name="po_number" type="text" placeholder="PO-2025-01" value="<?php echo safe($submitted['po_number']); ?>" />
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div>
-            <label class="label" for="project-customer">Customer</label>
-            <select id="project-customer" name="customer_id">
-              <option value="">-- Select Customer --</option>
-              <?php foreach ($customerOptions as $option): ?>
-                <option value="<?php echo safe($option['value']); ?>" <?php echo $submitted['customer_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div>
-            <label class="label" for="business-line">Business Line</label>
-            <select id="business-line" name="business_line_id">
-              <option value="">-- Select Business Line --</option>
-              <?php foreach ($businessLineOptions as $option): ?>
-                <option value="<?php echo safe($option['value']); ?>" <?php echo $submitted['business_line_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div>
-            <label class="label" for="project-start">Contract Date</label>
-            <input id="project-start" name="contract_date" type="date" value="<?php echo safe($submitted['contract_date']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="project-end">Expected End</label>
-            <input id="project-end" name="expected_end_date" type="date" value="<?php echo safe($submitted['expected_end_date']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="project-actual-end">Actual End</label>
-            <input id="project-actual-end" name="actual_end_date" type="date" value="<?php echo safe($submitted['actual_end_date']); ?>" />
-          </div>
-        </div>
 
         <div class="actions" style="margin:12px 0 28px; gap:10px; flex-wrap:wrap;">
           <button class="btn btn-save" type="submit" name="action" value="create">Create New Project</button>
