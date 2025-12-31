@@ -133,24 +133,29 @@ img.logo {
 }
 
 .filter-form {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
+  display: block;
   margin-top: 10px;
-  flex-wrap: wrap;
   padding-bottom: 6px;
 }
 
-.filter-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 12px;
-  flex: 1 1 360px;
-  min-width: 0;
+.filter-table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-.filter-grid > div {
-  min-width: 170px;
+.filter-table td {
+  padding: 0 12px 10px 0;
+  vertical-align: bottom;
+}
+
+.filter-table .filter-cell {
+  width: 25%;
+  min-width: 210px;
+}
+
+.filter-table .filter-actions-cell {
+  width: 1%;
+  white-space: nowrap;
 }
 
 .filter-form input[type="text"],
