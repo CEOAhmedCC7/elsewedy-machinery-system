@@ -37,7 +37,6 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $action,
         [
             'create' => 'create',
-            'view' => 'read',
             'update' => 'update',
             'delete' => 'delete',
             'bulk_delete' => 'delete',
@@ -160,25 +159,6 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $success = 'User updated successfully.';
                 }
             }
-        } elseif ($action === 'view') {
-            if ($submitted['user_id'] === '') {
-                $error = 'Please enter a User ID to view details.';
-            } else {
-                $stmt = $pdo->prepare('SELECT u.user_id, u.full_name, u.email, u.is_active, r.role_id FROM users u LEFT JOIN user_roles ur ON ur.user_id = u.user_id LEFT JOIN roles r ON r.role_id = ur.role_id WHERE u.user_id = :id');
-                $stmt->execute([':id' => $submitted['user_id']]);
-                $found = $stmt->fetch();
-
-                if ($found) {
-                    $submitted['full_name'] = $found['full_name'];
-                    $submitted['email'] = $found['email'];
-                    $submitted['role_id'] = (string) $found['role_id'];
-                    $submitted['is_active'] = filter_var($found['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) === false ? 'false' : 'true';
-                    $submitted['password'] = $passwordPlaceholder;
-                    $success = 'User loaded. You can update or delete this account.';
-                } else {
-                    $error = 'No user found with that ID.';
-                }
-            }
         } elseif ($action === 'delete') {
             if ($submitted['user_id'] === '') {
                 $error = 'Please provide the User ID to delete.';
@@ -223,6 +203,7 @@ $filters = [
     'status' => $_GET['filter_status'] ?? '',
     'role_id' => trim($_GET['filter_role'] ?? ''),
     'user_id' => trim($_GET['filter_user_id'] ?? ''),
+    'name' => trim($_GET['filter_name'] ?? ''),
 ];
 
 $users = [];
@@ -245,6 +226,11 @@ try {
         if ($filters['role_id'] !== '') {
             $conditions[] = 'r.role_id = :filter_role_id';
             $params[':filter_role_id'] = $filters['role_id'];
+        }
+
+        if ($filters['name'] !== '') {
+            $conditions[] = 'LOWER(u.full_name) LIKE :filter_name';
+            $params[':filter_name'] = '%' . strtolower($filters['name']) . '%';
         }
 
         $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
@@ -359,7 +345,6 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
 
         <div class="actions" style="margin:12px 0 28px; gap:10px; flex-wrap:wrap;">
           <button class="btn btn-save" type="submit" name="action" value="create">Create New User</button>
-          <button class="btn btn-view" type="submit" name="action" value="view">View</button>
           <button class="btn btn-update" type="submit" name="action" value="update">Update</button>
           <button class="btn btn-delete" type="submit" name="action" value="delete" onclick="return confirm('Are you sure you want to delete this user?');">Delete</button>
           <button class="btn btn-clear" type="button" id="clear-fields">Clear Fields</button>
@@ -370,6 +355,10 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
         <div>
           <label class="label" for="filter_user_id">Filter by ID</label>
           <input type="number" id="filter_user_id" name="filter_user_id" value="<?php echo safe($filters['user_id']); ?>" placeholder="User ID" />
+        </div>
+        <div>
+          <label class="label" for="filter_name">Filter by Name</label>
+          <input type="text" id="filter_name" name="filter_name" value="<?php echo safe($filters['name']); ?>" placeholder="Full name" />
         </div>
         <div>
           <label class="label" for="filter_role">Filter by Role</label>
@@ -422,7 +411,7 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
                   <td><?php echo safe($user['email']); ?></td>
                   <td><?php echo safe($user['role_name'] ?? 'Unassigned'); ?></td>
                   <td><?php echo filter_var($user['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) === false ? 'Inactive' : 'Active'; ?></td>
-                  <td><?php echo safe($user['created_at']); ?></td>
+                  <td><?php echo safe($user['created_at'] ? date('Y-m-d', strtotime($user['created_at'])) : ''); ?></td>
                 </tr>
               <?php endforeach; ?>
             <?php else: ?>
