@@ -351,35 +351,37 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
         </div>
       </form>
 
-      <form method="GET" action="users.php" class="form-row" style="align-items:flex-end; gap:12px; margin-top:10px;">
-        <div>
-          <label class="label" for="filter_user_id">Filter by ID</label>
-          <input type="number" id="filter_user_id" name="filter_user_id" value="<?php echo safe($filters['user_id']); ?>" placeholder="User ID" />
+      <form method="GET" action="users.php" class="filter-form">
+        <div class="filter-grid">
+          <div>
+            <label class="label" for="filter_user_id">Filter by ID</label>
+            <input type="number" id="filter_user_id" name="filter_user_id" value="<?php echo safe($filters['user_id']); ?>" placeholder="User ID" />
+          </div>
+          <div>
+            <label class="label" for="filter_name">Filter by Name</label>
+            <input type="text" id="filter_name" name="filter_name" value="<?php echo safe($filters['name']); ?>" placeholder="Full name" />
+          </div>
+          <div>
+            <label class="label" for="filter_role">Filter by Role</label>
+            <select id="filter_role" name="filter_role">
+              <option value="">All roles</option>
+              <?php foreach ($roleOptions as $role): ?>
+                <option value="<?php echo safe($role['value']); ?>" <?php echo $filters['role_id'] === $role['value'] ? 'selected' : ''; ?>>
+                  <?php echo safe($role['label']); ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="filter_status">Filter by Status</label>
+            <select id="filter_status" name="filter_status">
+              <option value="">All statuses</option>
+              <option value="active" <?php echo $filters['status'] === 'active' ? 'selected' : ''; ?>>Active</option>
+              <option value="inactive" <?php echo $filters['status'] === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <label class="label" for="filter_name">Filter by Name</label>
-          <input type="text" id="filter_name" name="filter_name" value="<?php echo safe($filters['name']); ?>" placeholder="Full name" />
-        </div>
-        <div>
-          <label class="label" for="filter_role">Filter by Role</label>
-          <select id="filter_role" name="filter_role">
-            <option value="">All roles</option>
-            <?php foreach ($roleOptions as $role): ?>
-              <option value="<?php echo safe($role['value']); ?>" <?php echo $filters['role_id'] === $role['value'] ? 'selected' : ''; ?>>
-                <?php echo safe($role['label']); ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div>
-          <label class="label" for="filter_status">Filter by Status</label>
-          <select id="filter_status" name="filter_status">
-            <option value="">All statuses</option>
-            <option value="active" <?php echo $filters['status'] === 'active' ? 'selected' : ''; ?>>Active</option>
-            <option value="inactive" <?php echo $filters['status'] === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
-          </select>
-        </div>
-        <div class="actions" style="margin:0; flex-wrap:wrap; gap:10px;">
+        <div class="actions filter-actions">
           <button class="btn btn-filter" type="submit">Apply Filters</button>
           <a class="btn btn-reset" href="users.php" style="text-decoration:none;">Reset</a>
           <button class="btn btn-delete" type="submit" form="bulk-delete-form" name="action" value="bulk_delete" onclick="return confirm('Delete selected users?');">Delete Selected</button>
