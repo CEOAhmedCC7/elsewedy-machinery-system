@@ -505,17 +505,25 @@ if ($pdo) {
                   $statusClass = $hasSubBatches ? 'module-card__status--allowed' : 'module-card__status--blocked';
                   $statusLabel = $hasSubBatches ? sprintf('%d sub-batches', count($subBatches)) : 'No sub-batches';
                 ?>
-                <div class="module-card module-card--no-image batches-card" style="display:flex; flex-direction:column; gap:10px;">
-                  <div class="module-card__body" style="flex:1; display:grid; gap:6px;">
+ <div class="module-card module-card--no-image batches-card" style="display:flex; flex-direction:column; gap:10px; position:relative;">
+                  <span class="module-card__status batches-card__status <?php echo safe($statusClass); ?>" aria-label="Sub-batch availability"><?php echo safe($statusLabel); ?></span>
+                  <div class="module-card__body" style="flex:1; display:grid; gap:6px; align-content:start;">
                     <h4 style="margin:0; color:#fff;">Batch: <?php echo safe($batch['batch_name']); ?></h4>
                     <p style="margin:0; color:#fff;"><small>Project: <?php echo safe($projectDetail['project_name']); ?></small></p>
                   </div>
-                  <div class="batches-card__footer" style="align-items:center;">
-                    <span class="module-card__status <?php echo safe($statusClass); ?>" aria-label="Sub-batch availability"><?php echo safe($statusLabel); ?></span>
-                    <button class="btn btn-update" type="button" data-toggle-batch="<?php echo safe($batch['batch_id']); ?>">Manage</button>
+                  <div class="batches-card__footer">
+                    <a class="btn btn-save" style="text-decoration:none;" href="sub-batches.php?batch_id=<?php echo safe($batch['batch_id']); ?>">View sub-batches</a>
+                    <button class="btn btn-update" type="button" data-open-manage="<?php echo safe($batch['batch_id']); ?>">Manage</button>
                   </div>
-                  <div class="batch-panel" data-batch-panel="<?php echo safe($batch['batch_id']); ?>" hidden>
-                    <div class="batch-panel__actions">
+                </div>
+
+                <div class="message-modal manage-batch-modal" data-batch-modal="<?php echo safe($batch['batch_id']); ?>" role="dialog" aria-modal="true" aria-label="Manage batch <?php echo safe($batch['batch_name']); ?>">
+                  <div class="message-dialog">
+                    <div class="message-dialog__header">
+                      <span class="message-title">Manage batch <?php echo safe($batch['batch_name']); ?></span>
+                      <button class="message-close" type="button" data-close-manage>&times;</button>
+                    </div>
+                    <div style="display:grid; gap:12px;">
                       <form method="POST" action="batches.php" class="form-row" style="gap:6px; align-items:center;">
                         <input type="hidden" name="action" value="update_batch" />
                         <input type="hidden" name="batch_id" value="<?php echo safe($batch['batch_id']); ?>" />
@@ -523,17 +531,12 @@ if ($pdo) {
                         <input type="text" name="batch_name" value="<?php echo safe($batch['batch_name']); ?>" style="min-width:180px;" />
                         <button class="btn btn-update" type="submit">Update name</button>
                       </form>
-                      <form method="POST" action="batches.php" onsubmit="return confirm('Delete this batch and its sub-batches?');">
+                      <form method="POST" action="batches.php" onsubmit="return confirm('Delete this batch and its sub-batches?');" style="display:flex; justify-content:flex-end;">
                         <input type="hidden" name="action" value="delete_batch" />
                         <input type="hidden" name="batch_id" value="<?php echo safe($batch['batch_id']); ?>" />
-                         <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
+                        <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
                         <button class="btn btn-delete" type="submit">Delete batch</button>
                       </form>
-                    </div>
-
-                    <div style="display:flex; justify-content:flex-start; gap:10px; flex-wrap:wrap; align-items:center; padding-top:10px; border-top:1px solid var(--border);">
-                      <span class="module-card__status <?php echo safe($statusClass); ?>"><?php echo safe($statusLabel); ?></span>
-                      <a class="btn btn-save" style="text-decoration:none;" href="sub-batches.php?batch_id=<?php echo safe($batch['batch_id']); ?>">View sub-batches</a>
                     </div>
                   </div>
                 </div>
@@ -598,25 +601,43 @@ if ($pdo) {
           }
         });
       }
+ const manageButtons = document.querySelectorAll('[data-open-manage]');
+      const manageModals = document.querySelectorAll('.manage-batch-modal');
 
-      const batchPanels = document.querySelectorAll('.batch-panel');
-      const manageButtons = document.querySelectorAll('[data-toggle-batch]');
+      const hideManageModal = (modal) => {
+        modal.classList.remove('is-visible');
+      };
 
       manageButtons.forEach((button) => {
+        const targetId = button.getAttribute('data-open-manage');
+        const modal = document.querySelector(`[data-batch-modal="${targetId}"]`);
+        if (!modal) return;
+
         button.addEventListener('click', () => {
-          const targetId = button.getAttribute('data-toggle-batch');
-          const panel = document.querySelector(`[data-batch-panel="${targetId}"]`);
-          if (!panel) return;
+          modal.classList.add('is-visible');
+        });
+      });
 
-          const wasHidden = panel.hasAttribute('hidden');
-          batchPanels.forEach((p) => p.setAttribute('hidden', ''));
+      manageModals.forEach((modal) => {
+        const closeButtons = modal.querySelectorAll('[data-close-manage]');
 
-          if (wasHidden) {
-            panel.removeAttribute('hidden');
-            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        closeButtons.forEach((button) => {
+          button.addEventListener('click', () => hideManageModal(modal));
+        });
+
+        modal.addEventListener('click', (event) => {
+          if (event.target === modal) {
+            hideManageModal(modal);
           }
         });
       });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          manageModals.forEach((modal) => hideManageModal(modal));
+        }
+      });
+
 
       const createModal = document.getElementById('create-batches-modal');
        const openModalButtons = document.querySelectorAll('[data-open-batch-modal]');
