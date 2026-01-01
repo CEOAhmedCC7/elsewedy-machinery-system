@@ -369,6 +369,9 @@ if ($pdo) {
  .name-inputs {
   display: grid;
   gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
  }
 
  .batch-grid {
@@ -474,25 +477,16 @@ if ($pdo) {
             </div>
             <?php if ($projectDetail): ?>
               <div style="color:var(--muted); font-size:14px;">Contract: <?php echo safe($projectDetail['contract_date'] ?: '—'); ?> | Expected end: <?php echo safe($projectDetail['expected_end_date'] ?: '—'); ?> | Actual end: <?php echo safe($projectDetail['actual_end_date'] ?: '—'); ?></div>
-            <?php else: ?>
+<?php else: ?>
               <div class="empty-state">Project not found.</div>
             <?php endif; ?>
           </div>
-          <div style="color:var(--muted); font-size:14px;">Manage batches and sub-batches for this project.</div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button class="btn btn-save" type="button" data-open-batch-modal style="white-space:nowrap;">Create batches</button>
+          </div>
         </div>
 
 <?php if ($projectDetail): ?>
-          <div class="card" style="padding:14px; border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow-sm); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
-            <div style="display:grid; gap:4px;">
-              <div style="font-weight:600;">Batches overview</div>
-              <span style="color:var(--muted); font-size:13px;">Create batches for <?php echo safe($projectDetail['project_name']); ?> in one click.</span>
-            </div>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <span style="color:var(--muted); font-size:13px;">Up to 50 batches at once</span>
-              <button class="btn btn-save" type="button" data-open-batch-modal>Create batches</button>
-            </div>
-          </div>
-
           <?php $projectBatches = $batchesByProject[(int) $projectDetail['project_id']] ?? []; ?>
           <?php if (!$projectBatches): ?>
             <div class="module-card module-card--no-image module-card--disabled" style="padding:16px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
@@ -608,7 +602,7 @@ if ($pdo) {
           <div class="form-row" style="gap:10px; align-items:flex-end;">
             <div style="flex:1; min-width:180px;">
               <label class="label" for="batch-count-input">How many batches?</label>
-              <input id="batch-count-input" name="batch_count" type="number" min="1" max="50" value="1" />
+              <input id="batch-count-input" name="batch_count" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Enter a number" value="1" />
             </div>
             <div style="flex:1; min-width:200px;">
               <label class="label" for="batch-base-input">Base name (optional)</label>
@@ -667,11 +661,18 @@ if ($pdo) {
       });
 
       const createModal = document.getElementById('create-batches-modal');
-      const openModalButtons = document.querySelectorAll('[data-open-batch-modal]');
+       const openModalButtons = document.querySelectorAll('[data-open-batch-modal]');
       const closeModalButtons = createModal ? createModal.querySelectorAll('[data-close-batch-modal]') : [];
       const countInput = document.getElementById('batch-count-input');
       const baseInput = document.getElementById('batch-base-input');
       const namesContainer = createModal ? createModal.querySelector('[data-batch-names]') : null;
+
+      const sanitizeCount = (value) => {
+        const parsed = parseInt(value, 10);
+        if (Number.isNaN(parsed)) return 1;
+        return Math.min(50, Math.max(1, parsed));
+      };
+
 
       const prefillNamesFromBase = () => {
         if (!baseInput || !namesContainer) return;
@@ -714,7 +715,7 @@ if ($pdo) {
       if (createModal && countInput && namesContainer) {
         const showCreateModal = () => {
           createModal.classList.add('is-visible');
-          const initialCount = Math.max(1, Math.min(50, parseInt(countInput.value, 10) || 1));
+         const initialCount = sanitizeCount(countInput.value || '1');
           countInput.value = initialCount;
           buildNameInputs(initialCount);
         };
@@ -739,7 +740,7 @@ if ($pdo) {
         });
 
         countInput.addEventListener('input', (event) => {
-          const value = Math.max(1, Math.min(50, parseInt(event.target.value, 10) || 1));
+          const value = sanitizeCount(event.target.value);
           event.target.value = value;
           buildNameInputs(value);
         });
