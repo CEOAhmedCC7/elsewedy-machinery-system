@@ -65,6 +65,32 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Sub-batch name must be 255 characters or fewer.');
             }
 
+            $namesToCreate = [];
+
+            if ($names) {
+                $namesToCreate = $names;
+            } else {
+                for ($i = 1; $i <= $count; $i++) {
+                    $name = $baseName;
+                    if ($count > 1) {
+                        $name = sprintf('%s %d', $baseName, $i);
+                    }
+                    $namesToCreate[] = $name;
+                }
+            }
+
+            $normalized = [];
+            foreach ($namesToCreate as $name) {
+                $key = mb_strtolower($name);
+                if (isset($normalized[$key])) {
+                    throw new RuntimeException('Duplicate sub-batch names are not allowed.');
+                }
+                $normalized[$key] = true;
+            }
+
+            $namesToCreate = array_values(array_keys($normalized, true, true));
+            $count = count($namesToCreate);
+
             $batchCheck = $pdo->prepare('SELECT project_id FROM batches WHERE batch_id = :id');
             $batchCheck->execute([':id' => $batchId]);
             $batchRow = $batchCheck->fetch();
@@ -76,30 +102,32 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('This batch does not belong to the selected project.');
             }
 
+            $existingStmt = $pdo->prepare('SELECT LOWER(sub_batch_name) AS name FROM sub_batch_details WHERE batch_id = :batch');
+            $existingStmt->execute([':batch' => $batchId]);
+            $existingNames = array_flip($existingStmt->fetchAll(PDO::FETCH_COLUMN));
+
+            $duplicateExisting = [];
+            foreach ($namesToCreate as $name) {
+                if (isset($existingNames[mb_strtolower($name)])) {
+                    $duplicateExisting[] = $name;
+                }
+            }
+
+            if ($duplicateExisting) {
+                $list = implode(', ', $duplicateExisting);
+                throw new RuntimeException('These sub-batch names already exist for this batch: ' . $list);
+            }
+
             $pdo->beginTransaction();
             try {
                 $stmt = $pdo->prepare('INSERT INTO sub_batch_details (batch_id, sub_batch_name, description) VALUES (:batch_id, :name, NULLIF(:description, \'\'))');
 
-                if ($names) {
-                    foreach ($names as $name) {
-                        $stmt->execute([
-                            ':batch_id' => $batchId,
-                            ':name' => $name,
-                            ':description' => $description,
-                        ]);
-                    }
-                } else {
-                    for ($i = 1; $i <= $count; $i++) {
-                        $name = $baseName;
-                        if ($count > 1) {
-                            $name = sprintf('%s %d', $baseName, $i);
-                        }
-                        $stmt->execute([
-                            ':batch_id' => $batchId,
-                            ':name' => $name,
-                            ':description' => $description,
-                        ]);
-                    }
+                foreach ($namesToCreate as $name) {
+                    $stmt->execute([
+                        ':batch_id' => $batchId,
+                        ':name' => $name,
+                        ':description' => $description,
+                    ]);
                 }
 
                 $pdo->commit();
