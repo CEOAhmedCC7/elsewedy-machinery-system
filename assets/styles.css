@@ -610,6 +610,27 @@ td input.permission-input {
   background: var(--secondary);
 }
 
+.batches-card {
+  position: relative;
+}
+
+.batches-card__status {
+  top: 10px;
+  left: 10px;
+  bottom: auto;
+  right: auto;
+  border-radius: 0 0 10px 0;
+}
+
+.batches-card__footer {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 0 12px 14px;
+  margin-top: auto;
+}
+
 .module-card__body {
   padding: 12px 12px 14px;
   display: grid;
