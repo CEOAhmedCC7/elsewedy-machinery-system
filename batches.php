@@ -286,23 +286,12 @@ if ($pdo) {
       color: #fff;
     }
 
-    .batches-card__footer {
+   .batches-card__footer {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-top: 12px;
       gap: 10px;
-    }
-
-    .batches-card .module-card__status {
-      background: rgba(255, 255, 255, 0.14);
-      color: #fff;
-      border-color: rgba(255, 255, 255, 0.3);
-    }
-
-    .batches-card .module-card__status--blocked {
-      background: rgba(255, 255, 255, 0.08);
-      color: #fff;
     }
   </style>
   <script src="./assets/app.js" defer></script>
@@ -373,10 +362,11 @@ if ($pdo) {
 
         <div class="module-grid">
           <?php foreach ($projects as $project): ?>
-            <?php
-              $hasBatches = ((int) ($project['batch_count'] ?? 0)) > 0;
+           <?php
+              $batchCount = (int) ($project['batch_count'] ?? 0);
+              $hasBatches = $batchCount > 0;
               $statusClass = $hasBatches ? 'module-card__status--allowed' : 'module-card__status--blocked';
-              $statusLabel = $hasBatches ? 'View batches' : 'No batches';
+              $statusLabel = $hasBatches ? sprintf('%d - batches', $batchCount) : 'No batches';
             ?>
          <a class="module-card module-card--link module-card--no-image batches-card" style="display:flex; flex-direction:column; justify-content:space-between;" data-project-id="<?php echo safe((string) $project['project_id']); ?>" href="batches.php?project_id=<?php echo safe($project['project_id']); ?>">
               <div class="module-card__body" style="flex:1;"> 
