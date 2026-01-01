@@ -19,17 +19,17 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     try {
-        if ($action === 'create_sub_batches') {
-            $batchId = (int) ($_POST['batch_id'] ?? 0);
-            $projectId = (int) ($_POST['project_id'] ?? 0);
-            $baseName = trim((string) ($_POST['sub_batch_base'] ?? ''));
-            $count = max(1, (int) ($_POST['sub_batch_count'] ?? 1));
-            $description = trim((string) ($_POST['sub_batch_description'] ?? ''));
+         if ($action === 'create_sub_batches') { 
+            $batchId = (int) ($_POST['batch_id'] ?? 0); 
+            $projectId = (int) ($_POST['project_id'] ?? 0); 
+            $baseName = trim((string) ($_POST['sub_batch_base'] ?? '')); 
+            $count = max(1, (int) ($_POST['sub_batch_count'] ?? 1)); 
             $rawNames = $_POST['sub_batch_names'] ?? [];
-            $names = [];
-
-            foreach ($rawNames as $name) {
-                $trimmed = trim((string) $name);
+            $rawDescriptions = $_POST['sub_batch_descriptions'] ?? [];
+            $names = []; 
+ 
+            foreach ($rawNames as $name) { 
+                $trimmed = trim((string) $name); 
                 if ($trimmed !== '') {
                     if (strlen($trimmed) > 255) {
                         throw new RuntimeException('Sub-batch name must be 255 characters or fewer.');
@@ -68,16 +68,18 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $normalized = [];
+             $normalized = [];
+            $finalNames = [];
             foreach ($namesToCreate as $name) {
                 $key = mb_strtolower($name);
                 if (isset($normalized[$key])) {
                     throw new RuntimeException('Duplicate sub-batch names are not allowed.');
                 }
                 $normalized[$key] = true;
+                $finalNames[] = $name;
             }
 
-            $namesToCreate = array_values(array_keys($normalized, true, true));
+            $namesToCreate = $finalNames;
             $count = count($namesToCreate);
 
             $batchCheck = $pdo->prepare('SELECT project_id FROM batches WHERE batch_id = :id');
@@ -107,11 +109,16 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('These sub-batch names already exist for this batch: ' . $list);
             }
 
-            $pdo->beginTransaction();
+           $pdo->beginTransaction();
             try {
                 $stmt = $pdo->prepare('INSERT INTO sub_batch_details (batch_id, sub_batch_name, description) VALUES (:batch_id, :name, NULLIF(:description, \'\'))');
 
-                foreach ($namesToCreate as $name) {
+                foreach ($namesToCreate as $index => $name) {
+                    $description = trim((string) ($rawDescriptions[$index] ?? ''));
+                    if (strlen($description) > 1000) {
+                        throw new RuntimeException('Descriptions must be 1000 characters or fewer.');
+                    }
+
                     $stmt->execute([
                         ':batch_id' => $batchId,
                         ':name' => $name,
@@ -125,11 +132,79 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->rollBack();
                 throw $inner;
             }
+        } elseif ($action === 'update_sub_batch') {
+            $subBatchId = (int) ($_POST['sub_batch_detail_id'] ?? 0);
+            $batchId = (int) ($_POST['batch_id'] ?? 0);
+            $projectId = (int) ($_POST['project_id'] ?? 0);
+            $name = trim((string) ($_POST['sub_batch_name'] ?? ''));
+            $description = trim((string) ($_POST['sub_batch_description'] ?? ''));
+
+            if ($subBatchId <= 0 || $batchId <= 0 || $projectId <= 0) {
+                throw new RuntimeException('Select a sub-batch to update.');
+            }
+            if ($name === '') {
+                throw new RuntimeException('Sub-batch name cannot be empty.');
+            }
+            if (strlen($name) > 255) {
+                throw new RuntimeException('Sub-batch name must be 255 characters or fewer.');
+            }
+            if (strlen($description) > 1000) {
+                throw new RuntimeException('Descriptions must be 1000 characters or fewer.');
+            }
+
+            $check = $pdo->prepare('SELECT sb.batch_id, b.project_id FROM sub_batch_details sb JOIN batches b ON b.batch_id = sb.batch_id WHERE sb.sub_batch_detail_id = :id');
+            $check->execute([':id' => $subBatchId]);
+            $row = $check->fetch();
+
+            if (!$row) {
+                throw new RuntimeException('Sub-batch not found.');
+            }
+            if ((int) $row['batch_id'] !== $batchId || (int) $row['project_id'] !== $projectId) {
+                throw new RuntimeException('This sub-batch does not belong to the selected batch.');
+            }
+
+            $update = $pdo->prepare('UPDATE sub_batch_details SET sub_batch_name = :name, description = NULLIF(:description, \'\') WHERE sub_batch_detail_id = :id');
+            $update->execute([
+                ':name' => $name,
+                ':description' => $description,
+                ':id' => $subBatchId,
+            ]);
+
+            $success = 'Sub-batch updated successfully.';
+        } elseif ($action === 'delete_sub_batch') {
+            $subBatchId = (int) ($_POST['sub_batch_detail_id'] ?? 0);
+            $batchId = (int) ($_POST['batch_id'] ?? 0);
+            $projectId = (int) ($_POST['project_id'] ?? 0);
+
+            if ($subBatchId <= 0 || $batchId <= 0 || $projectId <= 0) {
+                throw new RuntimeException('Select a sub-batch to delete.');
+            }
+
+            $check = $pdo->prepare('SELECT sb.batch_id, b.project_id FROM sub_batch_details sb JOIN batches b ON b.batch_id = sb.batch_id WHERE sb.sub_batch_detail_id = :id');
+            $check->execute([':id' => $subBatchId]);
+            $row = $check->fetch();
+
+            if (!$row) {
+                throw new RuntimeException('Sub-batch not found.');
+            }
+            if ((int) $row['batch_id'] !== $batchId || (int) $row['project_id'] !== $projectId) {
+                throw new RuntimeException('This sub-batch does not belong to the selected batch.');
+            }
+
+            $delete = $pdo->prepare('DELETE FROM sub_batch_details WHERE sub_batch_detail_id = :id');
+            $delete->execute([':id' => $subBatchId]);
+
+            if ($delete->rowCount() === 0) {
+                throw new RuntimeException('Sub-batch not found or already removed.');
+            }
+
+            $success = 'Sub-batch deleted successfully.';
         }
     } catch (Throwable $e) {
         $error = $error ?: format_db_error($e, 'sub-batches');
     }
 }
+
 
 $selectedBatch = null;
 $subBatches = [];
@@ -219,13 +294,29 @@ if ($pdo) {
         border-bottom-right-radius: 0;
         border-bottom-left-radius: 0;
       }
-
-      .batch-grid {
+ .batch-grid {
         display: grid;
         gap: 12px;
-        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
 
+      @media (max-width: 1200px) {
+        .batch-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 900px) {
+        .batch-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 600px) {
+        .batch-grid {
+          grid-template-columns: 1fr;
+        }
+      }
       .create-sub-modal .message-dialog {
         max-width: 720px;
       }
@@ -335,6 +426,36 @@ if ($pdo) {
                             <?php echo safe($sub['description'] ?: 'No description provided'); ?>
                           </p>
                         </div>
+                        <div class="batches-card__footer" style="margin-top:auto;">
+                          <button class="btn btn-update" type="button" data-open-sub-manage="<?php echo safe($sub['sub_batch_detail_id']); ?>">Manage</button>
+                        </div>
+                      </div>
+
+                      <div class="message-modal manage-sub-batch-modal" data-sub-batch-modal="<?php echo safe($sub['sub_batch_detail_id']); ?>" role="dialog" aria-modal="true" aria-label="Manage sub-batch <?php echo safe($sub['sub_batch_name']); ?>">
+                        <div class="message-dialog">
+                          <div class="message-dialog__header">
+                            <span class="message-title">Manage sub-batch <?php echo safe($sub['sub_batch_name']); ?></span>
+                            <button class="message-close" type="button" data-close-sub-manage>&times;</button>
+                          </div>
+                          <div style="display:grid; gap:12px;">
+                            <form method="POST" action="sub-batches.php?batch_id=<?php echo safe($selectedBatch['batch_id']); ?>" class="form-row" style="gap:6px; align-items:center;">
+                              <input type="hidden" name="action" value="update_sub_batch" />
+                              <input type="hidden" name="sub_batch_detail_id" value="<?php echo safe($sub['sub_batch_detail_id']); ?>" />
+                              <input type="hidden" name="batch_id" value="<?php echo safe($selectedBatch['batch_id']); ?>" />
+                              <input type="hidden" name="project_id" value="<?php echo safe($selectedBatch['project_id']); ?>" />
+                              <input type="text" name="sub_batch_name" value="<?php echo safe($sub['sub_batch_name']); ?>" style="min-width:160px;" />
+                              <input type="text" name="sub_batch_description" value="<?php echo safe($sub['description']); ?>" placeholder="Description (optional)" style="flex:1; min-width:200px;" />
+                              <button class="btn btn-update" type="submit">Update</button>
+                            </form>
+                            <form method="POST" action="sub-batches.php?batch_id=<?php echo safe($selectedBatch['batch_id']); ?>" onsubmit="return confirm('Delete this sub-batch?');" style="display:flex; justify-content:flex-end;">
+                              <input type="hidden" name="action" value="delete_sub_batch" />
+                              <input type="hidden" name="sub_batch_detail_id" value="<?php echo safe($sub['sub_batch_detail_id']); ?>" />
+                              <input type="hidden" name="batch_id" value="<?php echo safe($selectedBatch['batch_id']); ?>" />
+                              <input type="hidden" name="project_id" value="<?php echo safe($selectedBatch['project_id']); ?>" />
+                              <button class="btn btn-delete" type="submit">Delete</button>
+                            </form>
+                          </div>
+                        </div>
                       </div>
                     <?php endforeach; ?>
                   </div>
@@ -357,7 +478,7 @@ if ($pdo) {
             <input type="hidden" name="batch_id" value="<?php echo safe($selectedBatch['batch_id']); ?>" />
             <input type="hidden" name="project_id" value="<?php echo safe($selectedBatch['project_id']); ?>" />
 
-            <p style="margin:0; color:var(--muted);">Choose how many sub-batches to create, then name each sub-batch individually. Add an optional description that applies to all new sub-batches.</p>
+             <p style="margin:0; color:var(--muted);">Choose how many sub-batches to create, then name and describe each sub-batch individually.</p>
 
             <div class="form-row" style="gap:10px; align-items:flex-end;">
               <div style="flex:1; min-width:180px;">
@@ -368,10 +489,7 @@ if ($pdo) {
                 <label class="label" for="sub-batch-base-input">Base name (optional)</label>
                 <input id="sub-batch-base-input" name="sub_batch_base" type="text" placeholder="Sub-batch" />
               </div>
-              <div style="flex:1; min-width:200px;">
-                <label class="label" for="sub-batch-description-input">Description (optional)</label>
-                <input id="sub-batch-description-input" name="sub_batch_description" type="text" placeholder="Notes about these sub-batches" />
-              </div>
+              
             </div>
 
             <div class="name-inputs" data-sub-batch-names aria-label="Sub-batch names"></div>
@@ -390,11 +508,11 @@ if ($pdo) {
         const messageModal = document.querySelector('.message-modal:not(.create-sub-modal)');
         const messageClose = messageModal ? messageModal.querySelector('.message-close') : null;
 
-        if (messageModal && messageClose) {
-          const hideModal = () => messageModal.classList.remove('is-visible');
-          messageClose.addEventListener('click', hideModal);
-          messageModal.addEventListener('click', (event) => {
-            if (event.target === messageModal) {
+        if (messageModal && messageClose) { 
+          const hideModal = () => messageModal.classList.remove('is-visible'); 
+          messageClose.addEventListener('click', hideModal); 
+          messageModal.addEventListener('click', (event) => { 
+            if (event.target === messageModal) { 
               hideModal();
             }
           });
@@ -404,6 +522,37 @@ if ($pdo) {
             }
           });
         }
+
+        const manageButtons = document.querySelectorAll('[data-open-sub-manage]');
+        const manageModals = document.querySelectorAll('.manage-sub-batch-modal');
+
+        const hideManageModal = (modal) => {
+          modal.classList.remove('is-visible');
+        };
+
+        manageButtons.forEach((button) => {
+          const targetId = button.getAttribute('data-open-sub-manage');
+          const modal = document.querySelector(`[data-sub-batch-modal="${targetId}"]`);
+          if (!modal) return;
+
+          button.addEventListener('click', () => {
+            modal.classList.add('is-visible');
+          });
+        });
+
+        manageModals.forEach((modal) => {
+          const closeButtons = modal.querySelectorAll('[data-close-sub-manage]');
+
+          closeButtons.forEach((button) => {
+            button.addEventListener('click', () => hideManageModal(modal));
+          });
+
+          modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+              hideManageModal(modal);
+            }
+          });
+        });
 
         const createModal = document.getElementById('create-sub-batches-modal');
         const openModalButtons = document.querySelectorAll('[data-open-sub-batch-modal]');
@@ -422,34 +571,45 @@ if ($pdo) {
           if (!baseInput || !namesContainer) return;
           if (baseInput.value === '') return;
 
-          namesContainer.querySelectorAll('input').forEach((input, index) => {
-            if (input.value === '') {
-              input.value = `${baseInput.value} ${index + 1}`;
-            }
-          });
-        };
+          namesContainer.querySelectorAll('input[name="sub_batch_names[]"]').forEach((input, index) => {
+            if (input.value === '') { 
+              input.value = `${baseInput.value} ${index + 1}`; 
+            } 
+          }); 
+        }; 
 
-        const buildNameInputs = (count) => {
-          if (!namesContainer) return;
-          namesContainer.innerHTML = '';
-          for (let i = 1; i <= count; i++) {
-            const wrapper = document.createElement('div');
-            wrapper.style.display = 'grid';
-            wrapper.style.gap = '4px';
-
-            const label = document.createElement('label');
-            label.className = 'label';
-            label.textContent = `Sub-batch ${i} name`;
-            label.setAttribute('for', `sub-batch-name-${i}`);
+        const buildNameInputs = (count) => { 
+          if (!namesContainer) return; 
+          namesContainer.innerHTML = ''; 
+          for (let i = 1; i <= count; i++) { 
+            const wrapper = document.createElement('div'); 
+            wrapper.style.display = 'grid'; 
+            wrapper.style.gap = '6px';
+ 
+            const label = document.createElement('label'); 
+            label.className = 'label'; 
+            label.textContent = `Sub-batch ${i} name`; 
+            label.setAttribute('for', `sub-batch-name-${i}`); 
 
             const input = document.createElement('input');
-            input.id = `sub-batch-name-${i}`;
-            input.name = 'sub_batch_names[]';
+           input.name = 'sub_batch_names[]';
             input.type = 'text';
             input.placeholder = `Sub-batch ${i}`;
             input.maxLength = 255;
 
-            wrapper.append(label, input);
+            const descLabel = document.createElement('label');
+            descLabel.className = 'label';
+            descLabel.textContent = 'Description (optional)';
+            descLabel.setAttribute('for', `sub-batch-description-${i}`);
+
+            const descInput = document.createElement('input');
+            descInput.id = `sub-batch-description-${i}`;
+            descInput.name = 'sub_batch_descriptions[]';
+            descInput.type = 'text';
+            descInput.placeholder = `Notes for sub-batch ${i}`;
+            descInput.maxLength = 1000;
+
+            wrapper.append(label, input, descLabel, descInput);
             namesContainer.append(wrapper);
           }
 
@@ -478,8 +638,11 @@ if ($pdo) {
           });
 
           document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && createModal.classList.contains('is-visible')) {
-              hideCreateModal();
+            if (event.key === 'Escape') {
+              if (createModal.classList.contains('is-visible')) {
+                hideCreateModal();
+              }
+              manageModals.forEach((modal) => hideManageModal(modal));
             }
           });
 
