@@ -526,56 +526,14 @@ if ($pdo) {
                       <form method="POST" action="batches.php" onsubmit="return confirm('Delete this batch and its sub-batches?');">
                         <input type="hidden" name="action" value="delete_batch" />
                         <input type="hidden" name="batch_id" value="<?php echo safe($batch['batch_id']); ?>" />
-                        <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
+                         <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
                         <button class="btn btn-delete" type="submit">Delete batch</button>
                       </form>
                     </div>
 
-                    <div style="display:grid; gap:8px;">
-                      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                        <h4 style="color:var(--secondary);">Sub-batches</h4>
-                        <span class="module-card__status <?php echo safe($statusClass); ?>"><?php echo safe($statusLabel); ?></span>
-                      </div>
-
-                      <?php if (!$subBatches): ?>
-                        <div class="module-card module-card--no-image module-card--disabled" style="padding:12px;">
-                          <div class="module-card__body" style="margin:0;">
-                            <h4 style="margin:0;">No sub-batches</h4>
-                            <p style="margin:4px 0 0; color:var(--muted);"><small>Create sub-batches for this batch.</small></p>
-                          </div>
-                          <div class="module-card__status module-card__status--blocked">No sub-batches</div>
-                        </div>
-                      <?php else: ?>
-                        <div class="batch-listing">
-                          <?php foreach ($subBatches as $sub): ?>
-                            <div class="module-card module-card--no-image" style="padding:10px; display:grid; gap:4px;">
-                              <div class="module-card__body" style="margin:0;">
-                                <h4 style="margin:0;">Sub-batch: <?php echo safe($sub['sub_batch_name']); ?></h4>
-                                <p style="margin:4px 0 0; color:var(--muted);"><small><?php echo safe($sub['description'] ?: 'No description'); ?></small></p>
-                              </div>
-                            </div>
-                          <?php endforeach; ?>
-                        </div>
-                      <?php endif; ?>
-
-                      <form method="POST" action="batches.php" class="form-row" style="gap:10px; align-items:flex-end; border-top:1px solid var(--border); padding-top:10px;">
-                        <input type="hidden" name="action" value="create_sub_batches" />
-                        <input type="hidden" name="batch_id" value="<?php echo safe($batch['batch_id']); ?>" />
-                        <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
-                        <div style="flex:1; min-width:200px;">
-                          <label class="label" for="sub-base-<?php echo safe($batch['batch_id']); ?>">Sub-batch name</label>
-                          <input id="sub-base-<?php echo safe($batch['batch_id']); ?>" name="sub_batch_base" type="text" placeholder="Sub-batch" required />
-                        </div>
-                        <div style="width:140px;">
-                          <label class="label" for="sub-count-<?php echo safe($batch['batch_id']); ?>">How many?</label>
-                          <input id="sub-count-<?php echo safe($batch['batch_id']); ?>" name="sub_batch_count" type="number" min="1" max="50" value="1" />
-                        </div>
-                        <div style="flex:1; min-width:200px;">
-                          <label class="label" for="sub-desc-<?php echo safe($batch['batch_id']); ?>">Description (optional)</label>
-                          <input id="sub-desc-<?php echo safe($batch['batch_id']); ?>" name="sub_batch_description" type="text" placeholder="Notes about this batch" />
-                        </div>
-                        <button class="btn btn-save" type="submit" style="white-space:nowrap;">Create sub-batches</button>
-                      </form>
+                    <div style="display:flex; justify-content:flex-start; gap:10px; flex-wrap:wrap; align-items:center; padding-top:10px; border-top:1px solid var(--border);">
+                      <span class="module-card__status <?php echo safe($statusClass); ?>"><?php echo safe($statusLabel); ?></span>
+                      <a class="btn btn-save" style="text-decoration:none;" href="sub-batches.php?batch_id=<?php echo safe($batch['batch_id']); ?>">View sub-batches</a>
                     </div>
                   </div>
                 </div>
