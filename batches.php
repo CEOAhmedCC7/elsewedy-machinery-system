@@ -325,14 +325,14 @@ if ($pdo) {
       gap: 10px;
     }
 
-.batches-card .module-card__status {
+/* .batches-card .module-card__status {
   position: static;
   margin-left: auto;
-  border-top-left-radius: 8px; /* adjust value as needed */
+  border-top-left-radius: 8px;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   border-bottom-left-radius: 0;
-}
+} */
 
  .batch-panel {
   background: #fff;
@@ -512,7 +512,7 @@ if ($pdo) {
                     <p style="margin:0; color:#fff;"><small>Project: <?php echo safe($projectDetail['project_name']); ?></small></p>
                   </div>
                   <div class="batches-card__footer">
-                    <a class="btn btn-save" style="text-decoration:none;" href="sub-batches.php?batch_id=<?php echo safe($batch['batch_id']); ?>">View sub-batches</a>
+                    <a class="btn btn-save" style="text-decoration:none;" href="sub-batches.php?batch_id=<?php echo safe($batch['batch_id']); ?>">sub-batches</a>
                     <button class="btn btn-update" type="button" data-open-manage="<?php echo safe($batch['batch_id']); ?>">Manage</button>
                   </div>
                 </div>
