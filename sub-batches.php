@@ -2,7 +2,6 @@
 require_once __DIR__ . '/helpers.php';
 
 $currentUser = require_login();
-$moduleCode = resolve_module_code('BATCHES');
 
 $error = '';
 $success = '';
@@ -18,19 +17,9 @@ $batchId = isset($_GET['batch_id']) ? (int) $_GET['batch_id'] : null;
 
 if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
-    $permissionError = enforce_action_permission(
-        $currentUser,
-        $moduleCode ?? 'BATCHES',
-        $action,
-        [
-            'create_sub_batches' => 'create',
-        ]
-    );
 
     try {
-        if ($permissionError) {
-            $error = $permissionError;
-        } elseif ($action === 'create_sub_batches') {
+        if ($action === 'create_sub_batches') {
             $batchId = (int) ($_POST['batch_id'] ?? 0);
             $projectId = (int) ($_POST['project_id'] ?? 0);
             $baseName = trim((string) ($_POST['sub_batch_base'] ?? ''));
@@ -279,92 +268,81 @@ if ($pdo) {
     <?php endif; ?>
 
     <main style="padding:24px; display:grid; gap:20px;">
-      <div class="form-container" style="display:grid; gap:16px;">
-        <?php if (!$batchId): ?>
-          <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-end; flex-wrap:wrap;">
-            <div>
-              <h3 style="margin:0; color:var(--secondary);">Select a batch to manage sub-batches</h3>
-              <p style="margin:6px 0 0; color:var(--muted);">Create, update, or review sub-batches per batch.</p>
+        <div class="form-container" style="display:grid; gap:16px;">
+          <?php if (!$batchId): ?>
+            <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+              <div>
+                <h3 style="margin:0; color:var(--secondary);">Select a batch to manage sub-batches</h3>
+                <p style="margin:6px 0 0; color:var(--muted);">Create, update, or review sub-batches per batch.</p>
+              </div>
             </div>
-          </div>
 
-          <?php if (!$batches): ?>
-            <div class="empty-state">No batches found.</div>
-          <?php endif; ?>
+            <?php if (!$batches): ?>
+              <div class="empty-state">No batches found.</div>
+            <?php endif; ?>
 
-          <div class="module-grid">
-            <?php foreach ($batches as $batch): ?>
-              <?php
-                $hasSubBatches = ((int) ($batch['sub_count'] ?? 0)) > 0;
-                $statusClass = $hasSubBatches ? 'module-card__status--allowed' : 'module-card__status--blocked';
-                $statusLabel = $hasSubBatches ? sprintf('%d sub-batches', (int) $batch['sub_count']) : 'No sub-batches';
-              ?>
-              <a class="module-card module-card--link module-card--no-image batches-card" style="display:flex; flex-direction:column; justify-content:space-between;" href="sub-batches.php?batch_id=<?php echo safe($batch['batch_id']); ?>">
-                <div class="module-card__body" style="flex:1;">
-                  <h4 style="margin-bottom:6px;">Batch: <?php echo safe($batch['batch_name']); ?></h4>
-                  <p style="margin:0;"><small>Project: <?php echo safe($batch['project_name']); ?></small></p>
+            <div class="module-grid">
+              <?php foreach ($batches as $batch): ?>
+                <?php
+                  $hasSubBatches = ((int) ($batch['sub_count'] ?? 0)) > 0;
+                  $statusClass = $hasSubBatches ? 'module-card__status--allowed' : 'module-card__status--blocked';
+                  $statusLabel = $hasSubBatches ? sprintf('%d sub-batches', (int) $batch['sub_count']) : 'No sub-batches';
+                ?>
+                <a class="module-card module-card--link module-card--no-image batches-card" style="display:flex; flex-direction:column; justify-content:space-between;" href="sub-batches.php?batch_id=<?php echo safe($batch['batch_id']); ?>">
+                  <div class="module-card__body" style="flex:1;">
+                    <h4 style="margin-bottom:6px;">Batch: <?php echo safe($batch['batch_name']); ?></h4>
+                    <p style="margin:0;"><small>Project: <?php echo safe($batch['project_name']); ?></small></p>
+                  </div>
+                  <div class="batches-card__footer">
+                    <span class="module-card__status <?php echo safe($statusClass); ?>" aria-label="Sub-batch availability"><?php echo safe($statusLabel); ?></span>
+                  </div>
+                </a>
+              <?php endforeach; ?>
+            </div>
+          <?php else: ?>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+              <div style="display:grid; gap:6px;">
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                  <h2 style="margin:0; color:var(--secondary);">Batch: <?php echo safe($selectedBatch['batch_name'] ?? 'Batch'); ?></h2>
                 </div>
-                <div class="batches-card__footer">
-                  <span class="module-card__status <?php echo safe($statusClass); ?>" aria-label="Sub-batch availability"><?php echo safe($statusLabel); ?></span>
-                </div>
-              </a>
-            <?php endforeach; ?>
-          </div>
-        <?php else: ?>
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
-            <div style="display:grid; gap:6px;">
-              <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                <h2 style="margin:0; color:var(--secondary);">Batch: <?php echo safe($selectedBatch['batch_name'] ?? 'Batch'); ?></h2>
+                <?php if ($selectedBatch): ?>
+                  <div style="color:var(--muted); font-size:14px;">Project: <?php echo safe($selectedBatch['project_name']); ?> | PO: <?php echo safe($selectedBatch['po_number'] ?: '—'); ?> | Cost center: <?php echo safe($selectedBatch['cost_center_no'] ?: '—'); ?></div>
+                <?php endif; ?>
               </div>
               <?php if ($selectedBatch): ?>
-                <div style="color:var(--muted); font-size:14px;">Project: <?php echo safe($selectedBatch['project_name']); ?> | PO: <?php echo safe($selectedBatch['po_number'] ?: '—'); ?> | Cost center: <?php echo safe($selectedBatch['cost_center_no'] ?: '—'); ?></div>
-              <?php endif; ?>
-            </div>
-            <?php if ($selectedBatch): ?>
-              <div style="display:flex; align-items:center; gap:8px;">
-                <button class="btn btn-save" type="button" data-open-sub-batch-modal style="white-space:nowrap;">Create sub-batches</button>
-              </div>
-            <?php endif; ?>
-          </div>
-
-          <?php if (!$selectedBatch): ?>
-            <div class="empty-state">Batch not found.</div>
-          <?php else: ?>
-            <div class="module-card module-card--no-image" style="padding:16px; display:grid; gap:12px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-                <h3 style="margin:0;">Sub-batches</h3>
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <span class="module-card__status <?php echo $subBatches ? 'module-card__status--allowed' : 'module-card__status--blocked'; ?>"><?php echo $subBatches ? sprintf('%d sub-batches', count($subBatches)) : 'No sub-batches'; ?></span>
+                <div style="display:flex; align-items:center; gap:8px;">
                   <button class="btn btn-save" type="button" data-open-sub-batch-modal style="white-space:nowrap;">Create sub-batches</button>
                 </div>
-              </div>
-
-              <?php if (!$subBatches): ?>
-                <div class="module-card module-card--no-image module-card--disabled" style="padding:12px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
-                  <div class="module-card__body" style="margin:0;">
-                    <h4 style="margin:0;">No sub-batches</h4>
-                    <p style="margin:4px 0 0; color:var(--muted);"><small>Create the first sub-batches for this batch.</small></p>
-                  </div>
-                  <button class="btn btn-save" type="button" data-open-sub-batch-modal>Create sub-batches</button>
-                </div>
-              <?php else: ?>
-                <div class="batch-grid">
-                  <?php foreach ($subBatches as $sub): ?>
-                    <div class="module-card module-card--no-image batches-card" style="display:flex; flex-direction:column; gap:8px; position:relative; padding:12px;">
-                      <div class="module-card__body" style="margin:0; display:grid; gap:6px; align-content:start;">
-                        <h4 style="margin:0; color:#fff;"><?php echo safe($sub['sub_batch_name']); ?></h4>
-                        <p style="margin:0; color:#e6e6e6;">
-                          <?php echo safe($sub['description'] ?: 'No description provided'); ?>
-                        </p>
-                      </div>
-                    </div>
-                  <?php endforeach; ?>
-                </div>
               <?php endif; ?>
             </div>
+
+            <?php if (!$selectedBatch): ?>
+              <div class="empty-state">Batch not found.</div>
+            <?php else: ?>
+              <div class="module-card module-card--no-image" style="padding:16px; display:grid; gap:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                  <h3 style="margin:0;">Sub-batches</h3>
+                  <span class="module-card__status <?php echo $subBatches ? 'module-card__status--allowed' : 'module-card__status--blocked'; ?>"><?php echo $subBatches ? sprintf('%d sub-batches', count($subBatches)) : 'No sub-batches'; ?></span>
+                </div>
+
+                <?php if ($subBatches): ?>
+                  <div class="batch-grid">
+                    <?php foreach ($subBatches as $sub): ?>
+                      <div class="module-card module-card--no-image batches-card" style="display:flex; flex-direction:column; gap:8px; position:relative; padding:12px;">
+                        <div class="module-card__body" style="margin:0; display:grid; gap:6px; align-content:start;">
+                          <h4 style="margin:0; color:#fff;">Sub-batch: <?php echo safe($sub['sub_batch_name']); ?></h4>
+                          <p style="margin:0; color:#e6e6e6;">
+                            <?php echo safe($sub['description'] ?: 'No description provided'); ?>
+                          </p>
+                        </div>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                <?php endif; ?>
+              </div>
+            <?php endif; ?>
           <?php endif; ?>
-        <?php endif; ?>
-      </div>
+        </div>
     </main>
 
     <?php if ($selectedBatch): ?>
