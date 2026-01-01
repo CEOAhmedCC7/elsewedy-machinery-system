@@ -4,7 +4,8 @@ require_once __DIR__ . '/helpers.php';
 $user = require_login();
 
 $modules = fetch_table('modules', 'module_name');
-$isAdmin = strtolower((string) ($user['role'] ?? '')) === 'admin';
+$normalizedRole = strtolower(trim((string) ($user['role'] ?? '')));
+$isAdmin = $normalizedRole === 'admin';
 $userId = isset($user['user_id']) ? (int) $user['user_id'] : 0;
 $modulePermissions = [];
 
@@ -81,7 +82,7 @@ function normalize_module_card_image(string $rawImage): string
   <title>Home | Elsewedy Machinery</title>
   <link rel="stylesheet" href="./assets/styles.css" />
 </head>
-<body class="page" data-user-role="<?php echo safe(strtolower((string) ($user['role'] ?? ''))); ?>" data-user-id="<?php echo safe((string) $userId); ?>">
+<body class="page" data-user-role="<?php echo safe($normalizedRole); ?>" data-user-id="<?php echo safe((string) $userId); ?>">
   <header class="navbar">
     <div class="header">
       <img src="../EM%20Logo.jpg" alt="Elsewedy Machinery" class="logo" />
