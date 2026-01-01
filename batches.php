@@ -320,7 +320,7 @@ if ($pdo) {
    .batches-card__footer {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: stretch;
       margin-top: 12px;
       gap: 10px;
     }
@@ -374,11 +374,44 @@ if ($pdo) {
   padding-right: 4px;
  }
 
- .batch-grid {
+.batch-grid {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
  }
+
+ .batch-grid .batches-card__footer .btn,
+ .batch-grid .batches-card__footer a.btn {
+  flex: 1;
+  text-align: center;
+ }
+
+ .batch-grid .batches-card__footer {
+  align-items: stretch;
+ }
+
+ .batch-grid .module-card__body {
+  text-align: center;
+  justify-items: center;
+ }
+
+ @media (max-width: 1200px) {
+  .batch-grid {
+   grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+ }
+
+ @media (max-width: 900px) {
+  .batch-grid {
+   grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+ }
+
+ @media (max-width: 600px) {
+  .batch-grid {
+   grid-template-columns: 1fr;
+  }
+  }
   </style>
   <script src="./assets/app.js" defer></script>
 </head>
