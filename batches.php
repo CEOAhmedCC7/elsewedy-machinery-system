@@ -45,18 +45,33 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $projectId = (int) ($_POST['project_id'] ?? 0);
             $baseName = trim((string) ($_POST['batch_base'] ?? ''));
             $count = max(1, (int) ($_POST['batch_count'] ?? 1));
+            $rawNames = $_POST['batch_names'] ?? [];
+            $names = [];
+
+            foreach ($rawNames as $name) {
+                $trimmed = trim((string) $name);
+                if ($trimmed !== '') {
+                    if (strlen($trimmed) > 255) {
+                        throw new RuntimeException('Batch name must be 255 characters or fewer.');
+                    }
+                    $names[] = $trimmed;
+                }
+            }
 
             if ($projectId <= 0) {
                 throw new RuntimeException('Select a project before creating a batch.');
             }
-            if ($baseName === '') {
-                throw new RuntimeException('Batch name is required.');
+            if (!$names && $baseName === '') {
+                throw new RuntimeException('Provide at least one batch name.');
             }
-            if (strlen($baseName) > 255) {
-                throw new RuntimeException('Batch name must be 255 characters or fewer.');
+            if ($names) {
+                $count = count($names);
             }
             if ($count > 50) {
                 throw new RuntimeException('Please create 50 or fewer batches at once.');
+            }
+            if (!$names && strlen($baseName) > 255) {
+                throw new RuntimeException('Batch name must be 255 characters or fewer.');
             }
 
             $projectCheck = $pdo->prepare('SELECT 1 FROM projects WHERE project_id = :id');
@@ -68,15 +83,25 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->beginTransaction();
             try {
                 $insert = $pdo->prepare('INSERT INTO batches (project_id, batch_name) VALUES (:project_id, :batch_name)');
-                for ($i = 1; $i <= $count; $i++) {
-                    $name = $baseName;
-                    if ($count > 1) {
-                        $name = sprintf('%s %d', $baseName, $i);
+
+                if ($names) {
+                    foreach ($names as $name) {
+                        $insert->execute([
+                            ':project_id' => $projectId,
+                            ':batch_name' => $name,
+                        ]);
                     }
-                    $insert->execute([
-                        ':project_id' => $projectId,
-                        ':batch_name' => $name,
-                    ]);
+                } else {
+                    for ($i = 1; $i <= $count; $i++) {
+                        $name = $baseName;
+                        if ($count > 1) {
+                            $name = sprintf('%s %d', $baseName, $i);
+                        }
+                        $insert->execute([
+                            ':project_id' => $projectId,
+                            ':batch_name' => $name,
+                        ]);
+                    }
                 }
                 $pdo->commit();
             } catch (Throwable $inner) {
@@ -300,7 +325,7 @@ if ($pdo) {
       gap: 10px;
     }
 
- .batches-card .module-card__status {
+.batches-card .module-card__status {
   position: static;
   margin-left: auto;
   border-top-left-radius: 8px; /* adjust value as needed */
@@ -308,6 +333,49 @@ if ($pdo) {
   border-bottom-right-radius: 0;
   border-bottom-left-radius: 0;
 }
+
+ .batch-panel {
+  background: #fff;
+  color: var(--text);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+ }
+
+ .batch-panel h4 {
+  margin: 0;
+ }
+
+ .batch-panel__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+ }
+
+ .batch-listing {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+ }
+
+ .create-batch-modal .message-dialog {
+  max-width: 720px;
+ }
+
+ .name-inputs {
+  display: grid;
+  gap: 8px;
+ }
+
+ .batch-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+ }
   </style>
   <script src="./assets/app.js" defer></script>
 </head>
@@ -413,70 +481,68 @@ if ($pdo) {
           <div style="color:var(--muted); font-size:14px;">Manage batches and sub-batches for this project.</div>
         </div>
 
-        <?php if ($projectDetail): ?>
-          <section class="card" style="padding:14px; border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow-sm); display:grid; gap:12px;">
-            <header style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-              <div style="font-weight:600;">Create batches</div>
+<?php if ($projectDetail): ?>
+          <div class="card" style="padding:14px; border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow-sm); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+            <div style="display:grid; gap:4px;">
+              <div style="font-weight:600;">Batches overview</div>
+              <span style="color:var(--muted); font-size:13px;">Create batches for <?php echo safe($projectDetail['project_name']); ?> in one click.</span>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
               <span style="color:var(--muted); font-size:13px;">Up to 50 batches at once</span>
-            </header>
-            <form method="POST" action="batches.php" class="form-row" style="gap:12px; align-items:flex-end;">
-              <input type="hidden" name="action" value="create_batch" />
-              <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
-              <div style="flex:1; min-width:200px;">
-                <label class="label" for="batch-base-<?php echo safe($projectDetail['project_id']); ?>">Batch name</label>
-                <input id="batch-base-<?php echo safe($projectDetail['project_id']); ?>" name="batch_base" type="text" placeholder="Batch" required />
-              </div>
-              <div style="width:140px;">
-                <label class="label" for="batch-count-<?php echo safe($projectDetail['project_id']); ?>">How many?</label>
-                <input id="batch-count-<?php echo safe($projectDetail['project_id']); ?>" name="batch_count" type="number" min="1" max="50" value="1" />
-              </div>
-              <button class="btn btn-save" type="submit" style="white-space:nowrap;">Create batch</button>
-            </form>
-          </section>
+              <button class="btn btn-save" type="button" data-open-batch-modal>Create batches</button>
+            </div>
+          </div>
 
           <?php $projectBatches = $batchesByProject[(int) $projectDetail['project_id']] ?? []; ?>
           <?php if (!$projectBatches): ?>
-            <div class="module-card module-card--no-image module-card--disabled" style="padding:16px;">
+            <div class="module-card module-card--no-image module-card--disabled" style="padding:16px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
               <div class="module-card__body">
                 <h4 style="margin:0;">No batches</h4>
-                <p style="margin:4px 0 0; color:var(--muted);"><small>Create the first batch for this project.</small></p>
+                <p style="margin:4px 0 0; color:var(--muted);"><small>Create the first batches for this project.</small></p>
               </div>
-              <div class="module-card__status module-card__status--blocked">No batches</div>
+              <button class="btn btn-save" type="button" data-open-batch-modal>Create batches</button>
             </div>
           <?php else: ?>
-            <div class="module-grid">
+            <div class="batch-grid">
               <?php foreach ($projectBatches as $batch): ?>
                 <?php $subBatches = $subBatchesByBatch[(int) $batch['batch_id']] ?? []; ?>
                 <?php $hasSubBatches = count($subBatches) > 0; ?>
-                <div class="module-card module-card--no-image" style="display:flex; flex-direction:column; gap:10px;">
-                  <div class="module-card__body" style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap;">
-                    <div>
-                      <h4 style="margin:0; color:var(--secondary);">Batch: <?php echo safe($batch['batch_name']); ?></h4>
-                      <p style="margin:4px 0 0; color:var(--muted);"><small>Sub-batches: <?php echo count($subBatches); ?></small></p>
-                    </div>
-                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <?php
+                  $statusClass = $hasSubBatches ? 'module-card__status--allowed' : 'module-card__status--blocked';
+                  $statusLabel = $hasSubBatches ? sprintf('%d sub-batches', count($subBatches)) : 'No sub-batches';
+                ?>
+                <div class="module-card module-card--no-image batches-card" style="display:flex; flex-direction:column; gap:10px;">
+                  <div class="module-card__body" style="flex:1; display:grid; gap:6px;">
+                    <h4 style="margin:0; color:#fff;">Batch: <?php echo safe($batch['batch_name']); ?></h4>
+                    <p style="margin:0; color:#fff;"><small>Project: <?php echo safe($projectDetail['project_name']); ?></small></p>
+                  </div>
+                  <div class="batches-card__footer" style="align-items:center;">
+                    <span class="module-card__status <?php echo safe($statusClass); ?>" aria-label="Sub-batch availability"><?php echo safe($statusLabel); ?></span>
+                    <button class="btn btn-update" type="button" data-toggle-batch="<?php echo safe($batch['batch_id']); ?>">Manage</button>
+                  </div>
+                  <div class="batch-panel" data-batch-panel="<?php echo safe($batch['batch_id']); ?>" hidden>
+                    <div class="batch-panel__actions">
                       <form method="POST" action="batches.php" class="form-row" style="gap:6px; align-items:center;">
                         <input type="hidden" name="action" value="update_batch" />
                         <input type="hidden" name="batch_id" value="<?php echo safe($batch['batch_id']); ?>" />
                         <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
-                        <input type="text" name="batch_name" value="<?php echo safe($batch['batch_name']); ?>" style="min-width:140px;" />
-                        <button class="btn btn-update" type="submit">Update</button>
+                        <input type="text" name="batch_name" value="<?php echo safe($batch['batch_name']); ?>" style="min-width:180px;" />
+                        <button class="btn btn-update" type="submit">Update name</button>
                       </form>
                       <form method="POST" action="batches.php" onsubmit="return confirm('Delete this batch and its sub-batches?');">
                         <input type="hidden" name="action" value="delete_batch" />
                         <input type="hidden" name="batch_id" value="<?php echo safe($batch['batch_id']); ?>" />
                         <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
-                        <button class="btn btn-delete" type="submit">Delete</button>
+                        <button class="btn btn-delete" type="submit">Delete batch</button>
                       </form>
                     </div>
-                  </div>
 
-                  <details class="card" style="border:1px dashed var(--border); padding:10px; border-radius:8px;">
-                    <summary style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:10px;">
-                      <span style="color:var(--primary); font-weight:600;">View sub-batches</span>
-                      <span class="module-card__status <?php echo $hasSubBatches ? 'module-card__status--allowed' : 'module-card__status--blocked'; ?>"><?php echo $hasSubBatches ? 'Sub-batches available' : 'No sub-batches'; ?></span>
-                    </summary>
-                    <div style="margin-top:10px; display:grid; gap:10px;">
+                    <div style="display:grid; gap:8px;">
+                      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                        <h4 style="color:var(--secondary);">Sub-batches</h4>
+                        <span class="module-card__status <?php echo safe($statusClass); ?>"><?php echo safe($statusLabel); ?></span>
+                      </div>
+
                       <?php if (!$subBatches): ?>
                         <div class="module-card module-card--no-image module-card--disabled" style="padding:12px;">
                           <div class="module-card__body" style="margin:0;">
@@ -486,7 +552,7 @@ if ($pdo) {
                           <div class="module-card__status module-card__status--blocked">No sub-batches</div>
                         </div>
                       <?php else: ?>
-                        <div style="display:grid; gap:8px; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));">
+                        <div class="batch-listing">
                           <?php foreach ($subBatches as $sub): ?>
                             <div class="module-card module-card--no-image" style="padding:10px; display:grid; gap:4px;">
                               <div class="module-card__body" style="margin:0;">
@@ -517,7 +583,7 @@ if ($pdo) {
                         <button class="btn btn-save" type="submit" style="white-space:nowrap;">Create sub-batches</button>
                       </form>
                     </div>
-                  </details>
+                  </div>
                 </div>
               <?php endforeach; ?>
             </div>
@@ -527,10 +593,44 @@ if ($pdo) {
     </div>
   </main>
 
+  <?php if ($projectDetail): ?>
+    <div class="message-modal create-batch-modal" id="create-batches-modal" role="dialog" aria-modal="true" aria-label="Create batches">
+      <div class="message-dialog">
+        <div class="message-dialog__header">
+          <span class="message-title">Create batches for <?php echo safe($projectDetail['project_name']); ?></span>
+          <button class="message-close" type="button" aria-label="Close create batches" data-close-batch-modal>&times;</button>
+        </div>
+        <form method="POST" action="batches.php" style="display:grid; gap:12px;">
+          <input type="hidden" name="action" value="create_batch" />
+          <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
+          <p style="margin:0; color:var(--muted);">Choose how many batches to create, then name each batch individually.</p>
+
+          <div class="form-row" style="gap:10px; align-items:flex-end;">
+            <div style="flex:1; min-width:180px;">
+              <label class="label" for="batch-count-input">How many batches?</label>
+              <input id="batch-count-input" name="batch_count" type="number" min="1" max="50" value="1" />
+            </div>
+            <div style="flex:1; min-width:200px;">
+              <label class="label" for="batch-base-input">Base name (optional)</label>
+              <input id="batch-base-input" name="batch_base" type="text" placeholder="Batch" />
+            </div>
+          </div>
+
+          <div class="name-inputs" data-batch-names aria-label="Batch names"></div>
+
+          <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button class="btn" type="button" data-close-batch-modal>Cancel</button>
+            <button class="btn btn-save" type="submit">Confirm and create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  <?php endif; ?>
+
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      const messageModal = document.querySelector('.message-modal');
-      const messageClose = document.querySelector('.message-close');
+      const messageModal = document.querySelector('.message-modal:not(.create-batch-modal)');
+      const messageClose = messageModal ? messageModal.querySelector('.message-close') : null;
 
       if (messageModal && messageClose) {
         const hideModal = () => messageModal.classList.remove('is-visible');
@@ -538,13 +638,113 @@ if ($pdo) {
         messageModal.addEventListener('click', (event) => {
           if (event.target === messageModal) {
             hideModal();
-          }
+           }
         });
         document.addEventListener('keydown', (event) => {
           if (event.key === 'Escape') {
             hideModal();
           }
         });
+      }
+
+      const batchPanels = document.querySelectorAll('.batch-panel');
+      const manageButtons = document.querySelectorAll('[data-toggle-batch]');
+
+      manageButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const targetId = button.getAttribute('data-toggle-batch');
+          const panel = document.querySelector(`[data-batch-panel="${targetId}"]`);
+          if (!panel) return;
+
+          const wasHidden = panel.hasAttribute('hidden');
+          batchPanels.forEach((p) => p.setAttribute('hidden', ''));
+
+          if (wasHidden) {
+            panel.removeAttribute('hidden');
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        });
+      });
+
+      const createModal = document.getElementById('create-batches-modal');
+      const openModalButtons = document.querySelectorAll('[data-open-batch-modal]');
+      const closeModalButtons = createModal ? createModal.querySelectorAll('[data-close-batch-modal]') : [];
+      const countInput = document.getElementById('batch-count-input');
+      const baseInput = document.getElementById('batch-base-input');
+      const namesContainer = createModal ? createModal.querySelector('[data-batch-names]') : null;
+
+      const prefillNamesFromBase = () => {
+        if (!baseInput || !namesContainer) return;
+        if (baseInput.value === '') return;
+
+        namesContainer.querySelectorAll('input').forEach((input, index) => {
+          if (input.value === '') {
+            input.value = `${baseInput.value} ${index + 1}`;
+          }
+        });
+      };
+
+      const buildNameInputs = (count) => {
+        if (!namesContainer) return;
+        namesContainer.innerHTML = '';
+        for (let i = 1; i <= count; i++) {
+          const wrapper = document.createElement('div');
+          wrapper.style.display = 'grid';
+          wrapper.style.gap = '4px';
+
+          const label = document.createElement('label');
+          label.className = 'label';
+          label.textContent = `Batch ${i} name`;
+          label.setAttribute('for', `batch-name-${i}`);
+
+          const input = document.createElement('input');
+          input.id = `batch-name-${i}`;
+          input.name = 'batch_names[]';
+          input.type = 'text';
+          input.placeholder = `Batch ${i}`;
+          input.maxLength = 255;
+
+          wrapper.append(label, input);
+          namesContainer.append(wrapper);
+        }
+
+        prefillNamesFromBase();
+      };
+
+      if (createModal && countInput && namesContainer) {
+        const showCreateModal = () => {
+          createModal.classList.add('is-visible');
+          const initialCount = Math.max(1, Math.min(50, parseInt(countInput.value, 10) || 1));
+          countInput.value = initialCount;
+          buildNameInputs(initialCount);
+        };
+
+        const hideCreateModal = () => {
+          createModal.classList.remove('is-visible');
+        };
+
+        openModalButtons.forEach((button) => button.addEventListener('click', showCreateModal));
+        closeModalButtons.forEach((button) => button.addEventListener('click', hideCreateModal));
+
+        createModal.addEventListener('click', (event) => {
+          if (event.target === createModal) {
+            hideCreateModal();
+          }
+        });
+
+        document.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape' && createModal.classList.contains('is-visible')) {
+            hideCreateModal();
+          }
+        });
+
+        countInput.addEventListener('input', (event) => {
+          const value = Math.max(1, Math.min(50, parseInt(event.target.value, 10) || 1));
+          event.target.value = value;
+          buildNameInputs(value);
+        });
+
+        baseInput?.addEventListener('input', prefillNamesFromBase);
       }
     });
   </script>
