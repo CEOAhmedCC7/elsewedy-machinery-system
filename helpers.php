@@ -90,8 +90,42 @@ function require_login(): array
         exit;
     }
 
+    $userId = isset($user['user_id']) ? (int) $user['user_id'] : 0;
+
+    if ($userId > 0) {
+        try {
+            $pdo = get_pdo();
+            $stmt = $pdo->prepare(
+                'SELECT u.user_id, u.full_name, u.email, u.is_active, r.role_name
+                 FROM users u
+                 LEFT JOIN user_roles ur ON ur.user_id = u.user_id
+                 LEFT JOIN roles r ON r.role_id = ur.role_id
+                 WHERE u.user_id = :user_id
+                 LIMIT 1'
+            );
+            $stmt->execute([':user_id' => $userId]);
+            $freshUser = $stmt->fetch();
+
+            if ($freshUser) {
+                $displayName = $freshUser['full_name'] ?: ($freshUser['email'] ?? ($user['username'] ?? ''));
+                $updatedUser = [
+                    'user_id' => $freshUser['user_id'],
+                    'username' => $displayName,
+                    'email' => $freshUser['email'] ?? $user['email'] ?? '',
+                    'role' => $freshUser['role_name'] ?? 'user',
+                ];
+
+                $_SESSION['user'] = $updatedUser;
+                $user = $updatedUser;
+            }
+        } catch (Throwable $e) {
+            error_log('Failed to refresh user session: ' . $e->getMessage());
+        }
+    }
+
     return $user;
 }
+
 
 /**
  * Load CRUD permissions for the given user keyed by module_code.
