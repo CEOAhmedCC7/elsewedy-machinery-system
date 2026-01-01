@@ -392,7 +392,7 @@ $userIdSelectValue = in_array($submitted['user_id'], $userIdOptions, true) ? $su
                   <option value="inactive" <?php echo $filters['status'] === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
                 </select>
               </td>
-              <td class="filter-actions-cell" rowspan="2">
+               <td class="filter-actions-cell" rowspan="1" style="min-width:420px;width:1%;white-space:nowrap;padding-top:12px;vertical-align:middle;">
                 <div class="actions filter-actions">
                   <button class="btn btn-update" type="submit">Apply Filters</button>
                   <a class="btn btn-delete" href="users.php" style="text-decoration:none;">Reset</a>

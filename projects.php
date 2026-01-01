@@ -327,8 +327,8 @@ if ($pdo) {
                     <?php endforeach; ?>
                   </select>
                 </td>
-                <td class="filter-actions-cell" rowspan="1">
-                  <div class="actions filter-actions">
+               <td class="filter-actions-cell" rowspan="1" style="min-width:420px;width:1%;white-space:nowrap;padding-top:12px;vertical-align:middle;">
+                  <div class="actions filter-actions" style="flex-wrap:nowrap;">
                     <button class="btn btn-update" type="submit">Apply Filters</button>
                     <a class="btn btn-delete" href="projects.php" style="text-decoration:none;">Reset</a>
                     <button class="btn btn-delete" type="submit" form="projects-table-form" name="action" value="bulk_delete" onclick="return confirm('Delete selected projects?');">Delete Selected</button>
