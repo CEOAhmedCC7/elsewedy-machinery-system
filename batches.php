@@ -259,11 +259,52 @@ if ($pdo) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
-<head>
+ <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Batches | Elsewedy Machinery</title>
   <link rel="stylesheet" href="./assets/styles.css" />
+  <style>
+    .batches-card {
+      background: #282828ff;
+      color: #fff;
+      border: none;
+      text-decoration: none;
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+
+    .batches-card:hover,
+    .batches-card:focus-visible {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      outline: none;
+    }
+
+    .batches-card h4,
+    .batches-card p,
+    .batches-card small {
+      color: #fff;
+    }
+
+    .batches-card__footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 12px;
+      gap: 10px;
+    }
+
+    .batches-card .module-card__status {
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .batches-card .module-card__status--blocked {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+  </style>
   <script src="./assets/app.js" defer></script>
 </head>
 <body class="page">
@@ -300,9 +341,9 @@ if ($pdo) {
         <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-end; flex-wrap:wrap;">
           <div>
             <h3 style="margin:0; color:var(--secondary);">Select a project to manage batches</h3>
-            <p style="margin:6px 0 0; color:var(--muted);">Browse all existing projects, then open the batches screen to add or review batches and sub-batches.</p>
+            <p style="margin:6px 0 0; color:var(--muted);">Create, update, or delete batches per project.</p>
           </div>
-          <div style="color:var(--muted); font-size:14px;">Create, update, or delete batches per project.</div>
+          <!-- <div style="color:var(--muted); font-size:14px;">Create, update, or delete batches per project.</div> -->
         </div>
 
         <form class="filter-form" method="GET" action="batches.php" style="margin-bottom:4px; display:grid; gap:10px;">
@@ -337,18 +378,17 @@ if ($pdo) {
               $statusClass = $hasBatches ? 'module-card__status--allowed' : 'module-card__status--blocked';
               $statusLabel = $hasBatches ? 'View batches' : 'No batches';
             ?>
-            <div class="module-card module-card--link module-card--no-image" style="display:flex; flex-direction:column; justify-content:space-between;" data-project-id="<?php echo safe((string) $project['project_id']); ?>">
-              <div class="module-card__body" style="flex:1;">
-                <h4 style="margin-bottom:6px; color:var(--secondary);">Project: <?php echo safe($project['project_name']); ?></h4>
-                <p style="margin:0; color:var(--muted);"><small>PO: <?php echo safe($project['po_number'] ?: '—'); ?> | Cost center: <?php echo safe($project['cost_center_no'] ?: '—'); ?></small></p>
-              </div>
-              <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; margin-top:12px;">
-                <a class="btn btn-save" style="text-decoration:none; width:fit-content;" href="batches.php?project_id=<?php echo safe($project['project_id']); ?>">View batches</a>
-                <span class="module-card__status <?php echo safe($statusClass); ?>" aria-label="Batch availability"><?php echo safe($statusLabel); ?></span>
-              </div>
-            </div>
-          <?php endforeach; ?>
-        </div>
+         <a class="module-card module-card--link module-card--no-image batches-card" style="display:flex; flex-direction:column; justify-content:space-between;" data-project-id="<?php echo safe((string) $project['project_id']); ?>" href="batches.php?project_id=<?php echo safe($project['project_id']); ?>">
+              <div class="module-card__body" style="flex:1;"> 
+                <h4 style="margin-bottom:6px;"><?php echo safe($project['project_name']); ?></h4>
+                <p style="margin:0;"><small>PO: <?php echo safe($project['po_number'] ?: '—'); ?> | Cost center: <?php echo safe($project['cost_center_no'] ?: '—'); ?></small></p>
+              </div> 
+              <div class="batches-card__footer">
+                <span class="module-card__status <?php echo safe($statusClass); ?>" aria-label="Batch availability"><?php echo safe($statusLabel); ?></span> 
+              </div> 
+            </a>
+          <?php endforeach; ?> 
+        </div> 
       <?php else: ?>
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
           <div style="display:grid; gap:6px;">
