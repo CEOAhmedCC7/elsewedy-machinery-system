@@ -265,13 +265,16 @@ if ($pdo) {
   <title>Batches | Elsewedy Machinery</title>
   <link rel="stylesheet" href="./assets/styles.css" />
   <style>
-    .batches-card {
+   .batches-card {
       background: #282828ff;
       color: #fff;
       border: none;
       text-decoration: none;
       transition: transform 120ms ease, box-shadow 120ms ease;
-    }
+      position: relative;
+      min-height: 140px;
+      /* align-items:center; */
+       }
 
     .batches-card:hover,
     .batches-card:focus-visible {
@@ -280,12 +283,15 @@ if ($pdo) {
       outline: none;
     }
 
-    .batches-card h4,
+     .batches-card h4,
     .batches-card p,
     .batches-card small {
       color: #fff;
     }
 
+    .batches-card h4{
+        padding-top:20px;
+    }
    .batches-card__footer {
       display: flex;
       justify-content: space-between;
@@ -293,6 +299,15 @@ if ($pdo) {
       margin-top: 12px;
       gap: 10px;
     }
+
+ .batches-card .module-card__status {
+  position: static;
+  margin-left: auto;
+  border-top-left-radius: 8px; /* adjust value as needed */
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+}
   </style>
   <script src="./assets/app.js" defer></script>
 </head>
