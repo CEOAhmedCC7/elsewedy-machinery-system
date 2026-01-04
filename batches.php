@@ -15,7 +15,9 @@ try {
     $error = format_db_error($e, 'database connection');
 }
 
-$projectId = isset($_GET['project_id']) ? (int) $_GET['project_id'] : null;
+$projectId = isset($_GET['project_id'])
+    ? (int) $_GET['project_id']
+    : (isset($_POST['project_id']) ? (int) $_POST['project_id'] : null);
 
 $filters = [
     'project_name' => trim($_GET['filter_project_name'] ?? $_POST['filter_project_name'] ?? ''),
@@ -30,12 +32,14 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $moduleCode ?? 'BATCHES',
         $action,
         [
-            'create_batch' => 'create',
+             'create_batch' => 'create',
             'create_sub_batches' => 'create',
             'delete_batch' => 'delete',
             'update_batch' => 'update',
+            'bulk_delete_batches' => 'delete',
         ]
     );
+
 
     try {
         if ($permissionError) {
@@ -204,12 +208,27 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             $success = 'Batch updated successfully.';
+        } elseif ($action === 'bulk_delete_batches') {
+            $selectedIds = array_filter(array_map('intval', (array) ($_POST['selected_ids'] ?? [])));
+            $projectId = (int) ($_POST['project_id'] ?? 0);
+
+            if (!$selectedIds) {
+                throw new RuntimeException('Select at least one batch to delete.');
+            }
+            if ($projectId <= 0) {
+                throw new RuntimeException('Choose a project before deleting batches.');
+            }
+
+            $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+            $delete = $pdo->prepare("DELETE FROM batches WHERE project_id = ? AND batch_id IN ({$placeholders})");
+            $delete->execute(array_merge([$projectId], $selectedIds));
+
+            $success = $delete->rowCount() . ' batch(es) removed.';
         }
     } catch (Throwable $e) {
         $error = $error ?: format_db_error($e, 'batches module');
     }
 }
-
 $projects = [];
 $projectDetail = null;
 $batchesByProject = [];
@@ -378,7 +397,21 @@ if ($pdo) {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
- }
+  }
+
+  .batch-card__select {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-size: 12px;
+  }
 
  .batch-grid .batches-card__footer .btn,
  .batch-grid .batches-card__footer a.btn {
@@ -530,57 +563,67 @@ if ($pdo) {
               <button class="btn btn-save" type="button" data-open-batch-modal>Create batches</button>
             </div>
           <?php else: ?>
-            <div class="batch-grid">
-              <?php foreach ($projectBatches as $batch): ?>
-                <?php $subBatches = $subBatchesByBatch[(int) $batch['batch_id']] ?? []; ?>
-                <?php $hasSubBatches = count($subBatches) > 0; ?>
-                <?php
-                  $statusClass = $hasSubBatches ? 'module-card__status--allowed' : 'module-card__status--blocked';
-                  $statusLabel = $hasSubBatches ? sprintf('%d sub-batches', count($subBatches)) : 'No sub-batches';
-                ?>
- <div class="module-card module-card--no-image batches-card" style="display:flex; flex-direction:column; gap:10px; position:relative;">
-                  <span class="module-card__status batches-card__status <?php echo safe($statusClass); ?>" aria-label="Sub-batch availability"><?php echo safe($statusLabel); ?></span>
-                  <div class="module-card__body" style="flex:1; display:grid; gap:6px; align-content:start;">
-                    <h4 style="margin:0; color:#fff;">Batch: <?php echo safe($batch['batch_name']); ?></h4>
-                    <p style="margin:0; color:#fff;"><small>Project: <?php echo safe($projectDetail['project_name']); ?></small></p>
+            <form method="POST" action="batches.php?project_id=<?php echo safe($projectDetail['project_id']); ?>" onsubmit="return confirm('Delete selected batches?');" style="display:grid; gap:12px;">
+              <input type="hidden" name="action" value="bulk_delete_batches" />
+              <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
+              <div class="actions" style="justify-content:flex-end; gap:10px;">
+                <button class="btn btn-delete" type="submit">Delete selected</button>
+              </div>
+              <div class="batch-grid">
+                <?php foreach ($projectBatches as $batch): ?>
+                  <?php $subBatches = $subBatchesByBatch[(int) $batch['batch_id']] ?? []; ?>
+                  <?php $hasSubBatches = count($subBatches) > 0; ?>
+                  <?php
+                    $statusClass = $hasSubBatches ? 'module-card__status--allowed' : 'module-card__status--blocked';
+                    $statusLabel = $hasSubBatches ? sprintf('%d sub-batches', count($subBatches)) : 'No sub-batches';
+                  ?>
+                  <div class="module-card module-card--no-image batches-card" style="display:flex; flex-direction:column; gap:10px; position:relative;">
+                    <label class="batch-card__select">
+                      <input type="checkbox" name="selected_ids[]" value="<?php echo safe($batch['batch_id']); ?>" />
+                      <small>Select</small>
+                    </label>
+                    <span class="module-card__status batches-card__status <?php echo safe($statusClass); ?>" aria-label="Sub-batch availability"><?php echo safe($statusLabel); ?></span>
+                    <div class="module-card__body" style="flex:1; display:grid; gap:6px; align-content:start;">
+                      <h4 style="margin:0; color:#fff;">Batch: <?php echo safe($batch['batch_name']); ?></h4>
+                      <p style="margin:0; color:#fff;"><small>Project: <?php echo safe($projectDetail['project_name']); ?></small></p>
+                    </div>
+                    <div class="batches-card__footer">
+                      <a class="btn btn-save" style="text-decoration:none;" href="sub-batches.php?batch_id=<?php echo safe($batch['batch_id']); ?>">sub-batches</a>
+                      <button class="btn btn-update" type="button" data-open-manage="<?php echo safe($batch['batch_id']); ?>">Manage</button>
+                    </div>
                   </div>
-                  <div class="batches-card__footer">
-                    <a class="btn btn-save" style="text-decoration:none;" href="sub-batches.php?batch_id=<?php echo safe($batch['batch_id']); ?>">sub-batches</a>
-                    <button class="btn btn-update" type="button" data-open-manage="<?php echo safe($batch['batch_id']); ?>">Manage</button>
-                  </div>
-                </div>
 
-                <div class="message-modal manage-batch-modal" data-batch-modal="<?php echo safe($batch['batch_id']); ?>" role="dialog" aria-modal="true" aria-label="Manage batch <?php echo safe($batch['batch_name']); ?>">
-                  <div class="message-dialog">
-                    <div class="message-dialog__header">
-                      <span class="message-title">Manage batch <?php echo safe($batch['batch_name']); ?></span>
-                      <button class="message-close" type="button" data-close-manage>&times;</button>
-                    </div>
-                    <div style="display:grid; gap:12px;">
-                      <form method="POST" action="batches.php" class="form-row" style="gap:6px; align-items:center;">
-                        <input type="hidden" name="action" value="update_batch" />
-                        <input type="hidden" name="batch_id" value="<?php echo safe($batch['batch_id']); ?>" />
-                        <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
-                        <input type="text" name="batch_name" value="<?php echo safe($batch['batch_name']); ?>" style="min-width:180px;" />
-                        <button class="btn btn-update" type="submit">Update name</button>
-                      </form>
-                      <form method="POST" action="batches.php" onsubmit="return confirm('Delete this batch and its sub-batches?');" style="display:flex; justify-content:flex-end;">
-                        <input type="hidden" name="action" value="delete_batch" />
-                        <input type="hidden" name="batch_id" value="<?php echo safe($batch['batch_id']); ?>" />
-                        <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
-                        <button class="btn btn-delete" type="submit">Delete batch</button>
-                      </form>
+                  <div class="message-modal manage-batch-modal" data-batch-modal="<?php echo safe($batch['batch_id']); ?>" role="dialog" aria-modal="true" aria-label="Manage batch <?php echo safe($batch['batch_name']); ?>">
+                    <div class="message-dialog">
+                      <div class="message-dialog__header">
+                        <span class="message-title">Manage batch <?php echo safe($batch['batch_name']); ?></span>
+                        <button class="message-close" type="button" data-close-manage>&times;</button>
+                      </div>
+                      <div style="display:grid; gap:12px;">
+                        <form method="POST" action="batches.php" class="form-row" style="gap:6px; align-items:center;">
+                          <input type="hidden" name="action" value="update_batch" />
+                          <input type="hidden" name="batch_id" value="<?php echo safe($batch['batch_id']); ?>" />
+                          <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
+                          <input type="text" name="batch_name" value="<?php echo safe($batch['batch_name']); ?>" style="min-width:180px;" />
+                          <button class="btn btn-update" type="submit">Update name</button>
+                        </form>
+                        <form method="POST" action="batches.php" onsubmit="return confirm('Delete this batch and its sub-batches?');" style="display:flex; justify-content:flex-end;">
+                          <input type="hidden" name="action" value="delete_batch" />
+                          <input type="hidden" name="batch_id" value="<?php echo safe($batch['batch_id']); ?>" />
+                          <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
+                          <button class="btn btn-delete" type="submit">Delete batch</button>
+                        </form>
+                      </div>
                     </div>
                   </div>
-                </div>
-              <?php endforeach; ?>
-            </div>
+                <?php endforeach; ?>
+              </div>
+            </form>
           <?php endif; ?>
         <?php endif; ?>
       <?php endif; ?>
     </div>
   </main>
-
   <?php if ($projectDetail): ?>
     <div class="message-modal create-batch-modal" id="create-batches-modal" role="dialog" aria-modal="true" aria-label="Create batches">
       <div class="message-dialog">
