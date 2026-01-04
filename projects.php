@@ -311,16 +311,39 @@ if ($pdo) {
       background: var(--secondary);
     }
 
-    .project-card__select {
+     .project-card__select {
       position: absolute;
       top: 10px;
       right: 10px;
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 6px;
-      background: rgba(255, 255, 255, 0.14);
-      padding: 6px 8px;
-      border-radius: 999px;
+      justify-content: center;
+      padding: 8px;
+      border-radius: 10px;
+    }
+
+    .project-card__select input[type="checkbox"] {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid #fff;
+      border-radius: 6px;
+      background: transparent;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+    }
+
+    .project-card__select input[type="checkbox"]:checked {
+      background: var(--secondary);
+      border-color: var(--secondary);
+      box-shadow: inset 0 0 0 2px #ffffffff;
+    }
+
+    .project-card__select input[type="checkbox"]:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 2px;
     }
 
     .project-modal .message-dialog {
@@ -503,9 +526,8 @@ if ($pdo) {
               <span class="module-card__status project-status <?php echo safe($statusClass); ?>" aria-label="Business line">
                 <?php echo safe($businessLineName); ?>
               </span>
-              <label class="project-card__select">
+              <label class="project-card__select" title="Select project" aria-label="Select project">
                 <input type="checkbox" name="selected_ids[]" value="<?php echo safe($project['project_id']); ?>" />
-                <small>Select</small>
               </label>
               <div class="module-card__body" style="display:grid; gap:6px; align-content:start;">
                 <h4><?php echo safe($project['project_name']); ?></h4>

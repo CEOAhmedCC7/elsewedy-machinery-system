@@ -427,7 +427,7 @@ if ($pdo) {
   .batch-card__select input[type="checkbox"]:checked {
     background: var(--secondary);
     border-color: var(--secondary);
-    box-shadow: inset 0 0 0 2px #282828;
+     box-shadow: inset 0 0 0 2px #ffffffff;
   }
 
   .batch-card__select input[type="checkbox"]:focus-visible {
