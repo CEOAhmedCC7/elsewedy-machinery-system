@@ -144,6 +144,10 @@ $filters = [
     'cost_center_no' => trim($_GET['filter_cost_center_no'] ?? ''),
     'po_number' => trim($_GET['filter_po_number'] ?? ''),
     'business_line_id' => trim($_GET['filter_business_line_id'] ?? ''),
+    'customer_id' => trim($_GET['filter_customer_id'] ?? ''),
+    'contract_date' => trim($_GET['filter_contract_date'] ?? ''),
+    'expected_end_date' => trim($_GET['filter_expected_end_date'] ?? ''),
+    'actual_end_date' => trim($_GET['filter_actual_end_date'] ?? ''),
 ];
 
 $projects = [];
@@ -169,6 +173,23 @@ if ($pdo) {
             $conditions[] = 'p.business_line_id = :filter_business';
             $params[':filter_business'] = $filters['business_line_id'];
         }
+        if ($filters['customer_id'] !== '') {
+            $conditions[] = 'p.customer_id = :filter_customer';
+            $params[':filter_customer'] = $filters['customer_id'];
+        }
+        if ($filters['contract_date'] !== '') {
+            $conditions[] = 'p.contract_date = :filter_contract';
+            $params[':filter_contract'] = $filters['contract_date'];
+        }
+        if ($filters['expected_end_date'] !== '') {
+            $conditions[] = 'p.expected_end_date = :filter_expected';
+            $params[':filter_expected'] = $filters['expected_end_date'];
+        }
+        if ($filters['actual_end_date'] !== '') {
+            $conditions[] = 'p.actual_end_date = :filter_actual';
+            $params[':filter_actual'] = $filters['actual_end_date'];
+        }
+
 
         $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
         $sql = "SELECT p.project_id, p.project_name, p.cost_center_no, p.po_number, p.customer_id, p.contract_date, p.expected_end_date, p.actual_end_date, p.business_line_id, COALESCE(c.customer_name, '') AS customer_name, COALESCE(bl.business_line_name, '') AS business_line_name FROM projects p LEFT JOIN customers c ON c.customer_id = p.customer_id LEFT JOIN business_lines bl ON bl.business_line_id = p.business_line_id {$whereSql} ORDER BY p.project_id DESC";
@@ -235,10 +256,33 @@ if ($pdo) {
       text-align: center;
     }
 
-    .project-status {
+     .project-status {
+      position: absolute;
+      height:35px;
+      top: 10px;
+      left: 10px;
+      right: auto;
+      border-radius: 6px;
+      background: var(--secondary);
+      padding: 6px 10px;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    .project-status.module-card__status--blocked {
+      background: var(--secondary);
+    }
+
+    .project-card__select {
       position: absolute;
       top: 10px;
       right: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.14);
+      padding: 6px 8px;
+      border-radius: 999px;
     }
 
     .project-modal .message-dialog {
@@ -315,27 +359,48 @@ if ($pdo) {
       </div>
 
       <form method="GET" action="projects.php" class="filter-form" style="display:grid; gap:10px;">
-        <div class="form-row" style="gap:12px; align-items:flex-end;">
-          <div style="flex:1; min-width:180px;">
+        <div class="form-row" style="display:flex; flex-wrap:nowrap; gap:12px; align-items:flex-end; overflow-x:auto; padding-bottom:6px;">
+          <div style="flex:1; min-width:170px;">
             <label class="label" for="filter_project_name">Filter by Name</label>
             <input type="text" id="filter_project_name" name="filter_project_name" value="<?php echo safe($filters['project_name']); ?>" placeholder="Project name" />
           </div>
-          <div style="flex:1; min-width:160px;">
-            <label class="label" for="filter_cost_center_no">Filter by Cost Center</label>
+          <div style="flex:1; min-width:150px;">
+            <label class="label" for="filter_cost_center_no">Cost Center</label>
             <input type="text" id="filter_cost_center_no" name="filter_cost_center_no" value="<?php echo safe($filters['cost_center_no']); ?>" placeholder="Cost center" />
           </div>
-          <div style="flex:1; min-width:160px;">
-            <label class="label" for="filter_po_number">Filter by PO</label>
+          <div style="flex:1; min-width:150px;">
+            <label class="label" for="filter_po_number">PO</label>
             <input type="text" id="filter_po_number" name="filter_po_number" value="<?php echo safe($filters['po_number']); ?>" placeholder="PO number" />
           </div>
           <div style="flex:1; min-width:180px;">
-            <label class="label" for="filter_business_line_id">Filter by Business Line</label>
+            <label class="label" for="filter_customer_id">Customer</label>
+            <select id="filter_customer_id" name="filter_customer_id">
+              <option value="">All customers</option>
+              <?php foreach ($customerOptions as $option): ?>
+                <option value="<?php echo safe($option['value']); ?>" <?php echo $filters['customer_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div style="flex:1; min-width:180px;">
+            <label class="label" for="filter_business_line_id">Business Line</label>
             <select id="filter_business_line_id" name="filter_business_line_id">
               <option value="">All business lines</option>
               <?php foreach ($businessLineOptions as $option): ?>
                 <option value="<?php echo safe($option['value']); ?>" <?php echo $filters['business_line_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
               <?php endforeach; ?>
             </select>
+          </div>
+          <div style="flex:1; min-width:170px;">
+            <label class="label" for="filter_contract_date">Contract date</label>
+            <input type="date" id="filter_contract_date" name="filter_contract_date" value="<?php echo safe($filters['contract_date']); ?>" />
+          </div>
+          <div style="flex:1; min-width:170px;">
+            <label class="label" for="filter_expected_end_date">Expected end</label>
+            <input type="date" id="filter_expected_end_date" name="filter_expected_end_date" value="<?php echo safe($filters['expected_end_date']); ?>" />
+          </div>
+          <div style="flex:1; min-width:170px;">
+            <label class="label" for="filter_actual_end_date">Actual end</label>
+            <input type="date" id="filter_actual_end_date" name="filter_actual_end_date" value="<?php echo safe($filters['actual_end_date']); ?>" />
           </div>
         </div>
         <div class="actions" style="justify-content:flex-start; gap:10px;">
@@ -348,26 +413,35 @@ if ($pdo) {
         <div class="empty-state">No projects recorded yet. Use the Create project button to add one.</div>
       <?php endif; ?>
 
-      <div class="project-grid">
-        <?php foreach ($projects as $project): ?>
-          <?php
-            $businessLineName = $project['business_line_name'] ?: 'Business line not set';
-            $statusClass = $project['business_line_name'] ? 'module-card__status--allowed' : 'module-card__status--blocked';
-          ?>
-          <div class="module-card module-card--no-image project-card" tabindex="0">
-            <span class="module-card__status project-status <?php echo safe($statusClass); ?>" aria-label="Business line">
-              <?php echo safe($businessLineName); ?>
-            </span>
-            <div class="module-card__body" style="display:grid; gap:6px; align-content:start;">
-              <h4><?php echo safe($project['project_name']); ?></h4>
-              <p><small>PO: <?php echo safe($project['po_number'] ?: '—'); ?> | Cost center: <?php echo safe($project['cost_center_no'] ?: '—'); ?></small></p>
-              <p><small>Customer: <?php echo safe($project['customer_name'] ?: $project['customer_id'] ?: '—'); ?></small></p>
+        <form method="POST" action="projects.php" onsubmit="return confirm('Delete selected projects?');" style="display:grid; gap:12px;">
+        <input type="hidden" name="action" value="bulk_delete" />
+        <div class="actions" style="justify-content:flex-end; gap:10px;">
+          <button class="btn btn-delete" type="submit">Delete selected</button>
+        </div>
+        <div class="project-grid">
+          <?php foreach ($projects as $project): ?>
+            <?php
+              $businessLineName = $project['business_line_name'] ?: 'Business line not set';
+              $statusClass = $project['business_line_name'] ? 'module-card__status--allowed' : 'module-card__status--blocked';
+            ?>
+            <div class="module-card module-card--no-image project-card" tabindex="0">
+              <span class="module-card__status project-status <?php echo safe($statusClass); ?>" aria-label="Business line">
+                <?php echo safe($businessLineName); ?>
+              </span>
+              <label class="project-card__select">
+                <input type="checkbox" name="selected_ids[]" value="<?php echo safe($project['project_id']); ?>" />
+                <small>Select</small>
+              </label>
+              <div class="module-card__body" style="display:grid; gap:6px; align-content:start;">
+                <h4><?php echo safe($project['project_name']); ?></h4>
+                <p><small>PO: <?php echo safe($project['po_number'] ?: '—'); ?> | Cost center: <?php echo safe($project['cost_center_no'] ?: '—'); ?></small></p>
+                <p><small>Customer: <?php echo safe($project['customer_name'] ?: $project['customer_id'] ?: '—'); ?></small></p>
+              </div>
+              <div class="project-card__footer">
+                <button class="btn btn-update" type="button" data-open-manage="<?php echo safe($project['project_id']); ?>">Manage</button>
+                <button class="btn btn-neutral" type="button" data-open-details="<?php echo safe($project['project_id']); ?>">View details</button>
+              </div>
             </div>
-            <div class="project-card__footer">
-              <button class="btn btn-update" type="button" data-open-manage="<?php echo safe($project['project_id']); ?>">Manage</button>
-              <button class="btn btn-neutral" type="button" data-open-details="<?php echo safe($project['project_id']); ?>">View details</button>
-            </div>
-          </div>
 
           <div class="message-modal project-modal" data-manage-modal="<?php echo safe($project['project_id']); ?>" role="dialog" aria-modal="true" aria-label="Manage project <?php echo safe($project['project_name']); ?>">
             <div class="message-dialog">
@@ -477,7 +551,8 @@ if ($pdo) {
             </div>
           </div>
         <?php endforeach; ?>
-      </div>
+        </div>
+      </form>
     </div>
   </main>
 
