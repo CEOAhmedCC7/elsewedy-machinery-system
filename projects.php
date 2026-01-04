@@ -21,6 +21,17 @@ $customerOptions = to_options($customers, 'customer_id', 'customer_name');
 $businessLines = fetch_table('business_lines', 'business_line_name');
 $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_line_name');
 
+function option_label(array $options, string $value): string
+{
+    foreach ($options as $option) {
+        if ((string) ($option['value'] ?? '') === $value) {
+            return (string) ($option['label'] ?? $value);
+        }
+    }
+
+    return $value;
+}
+
 $submitted = [
     'project_id' => trim($_POST['project_id'] ?? ''),
     'project_name' => trim($_POST['project_name'] ?? ''),
@@ -79,10 +90,25 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':expected' => $submitted['expected_end_date'],
                 ':actual' => $submitted['actual_end_date'],
                 ':business' => $submitted['business_line_id'],
-            ]);
+             ]);
 
             $newId = (int) $pdo->lastInsertId('projects_project_id_seq');
-            $success = 'Project created successfully (ID #' . $newId . ').';
+            $successDetails = [
+                'Name' => $submitted['project_name'],
+                'Cost Center' => $submitted['cost_center_no'] ?: '—',
+                'PO' => $submitted['po_number'] ?: '—',
+                'Customer' => option_label($customerOptions, $submitted['customer_id']),
+                'Contract' => $submitted['contract_date'] ?: '—',
+                'Expected End' => $submitted['expected_end_date'] ?: '—',
+                'Actual End' => $submitted['actual_end_date'] ?: '—',
+                'Business Line' => option_label($businessLineOptions, $submitted['business_line_id']),
+            ];
+
+            $success = 'Project created successfully (ID #' . $newId . '). Details: ' . implode(' | ', array_map(
+                static fn ($label, $value) => $label . ': ' . $value,
+                array_keys($successDetails),
+                array_values($successDetails)
+            ));
             $submitted = array_map(static fn () => '', $submitted);
         } elseif ($action === 'update') {
             if ($submitted['project_id'] === '') {
