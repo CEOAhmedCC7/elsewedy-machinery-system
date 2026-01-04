@@ -476,10 +476,10 @@ if ($pdo) {
               <div class="empty-state">Batch not found.</div>
             <?php else: ?>
               <div class="module-card module-card--no-image" style="padding:16px; display:grid; gap:12px;">
-                 <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                   <h3 style="margin:0;">Sub-batches</h3>
-                  <span class="module-card__status <?php echo $subBatches ? 'module-card__status--allowed' : 'module-card__status--blocked'; ?>"><?php echo $subBatches ? sprintf('%d sub-batches', count($subBatches)) : 'No sub-batches'; ?></span>
                 </div>
+
 
                 <?php if ($subBatches): ?>
                   <form id="bulk-delete-form" method="POST" action="sub-batches.php?batch_id=<?php echo safe($selectedBatch['batch_id']); ?>" style="display:flex; justify-content:flex-end; gap:10px;">
