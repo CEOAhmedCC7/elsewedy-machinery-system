@@ -488,7 +488,7 @@ if ($pdo) {
         <div class="empty-state">No projects recorded yet. Use the Create project button to add one.</div>
       <?php endif; ?>
 
-        <form method="POST" action="projects.php" onsubmit="return confirm('Delete selected projects?');" style="display:grid; gap:12px;">
+      <form method="POST" action="projects.php" onsubmit="return confirm('Delete selected projects?');" style="display:grid; gap:12px;">
         <input type="hidden" name="action" value="bulk_delete" />
         <div class="actions" style="justify-content:flex-end; gap:10px;">
           <button class="btn btn-delete" type="submit">Delete selected</button>
@@ -517,117 +517,119 @@ if ($pdo) {
                 <button class="btn btn-neutral" type="button" data-open-details="<?php echo safe($project['project_id']); ?>">View details</button>
               </div>
             </div>
-
-          <div class="message-modal project-modal" data-manage-modal="<?php echo safe($project['project_id']); ?>" role="dialog" aria-modal="true" aria-label="Manage project <?php echo safe($project['project_name']); ?>">
-            <div class="message-dialog">
-              <div class="message-dialog__header">
-                <span class="message-title">Manage <?php echo safe($project['project_name']); ?></span>
-                <button class="message-close" type="button" aria-label="Close manage project" data-close-modal>&times;</button>
-              </div>
-              <form method="POST" action="projects.php" style="display:grid; gap:12px;">
-                <input type="hidden" name="action" value="update" />
-                <input type="hidden" name="project_id" value="<?php echo safe($project['project_id']); ?>" />
-                <div class="project-form-grid">
-                  <div>
-                    <label class="label" for="project-name-<?php echo safe($project['project_id']); ?>">Project Name</label>
-                    <input id="project-name-<?php echo safe($project['project_id']); ?>" name="project_name" type="text" value="<?php echo safe($project['project_name']); ?>" required />
-                  </div>
-                  <div>
-                    <label class="label" for="cost-center-<?php echo safe($project['project_id']); ?>">Cost Center No</label>
-                    <input id="cost-center-<?php echo safe($project['project_id']); ?>" name="cost_center_no" type="text" value="<?php echo safe($project['cost_center_no']); ?>" />
-                  </div>
-                  <div>
-                    <label class="label" for="po-number-<?php echo safe($project['project_id']); ?>">PO Number</label>
-                    <input id="po-number-<?php echo safe($project['project_id']); ?>" name="po_number" type="text" value="<?php echo safe($project['po_number']); ?>" />
-                  </div>
-                  <div>
-                    <label class="label" for="project-customer-<?php echo safe($project['project_id']); ?>">Customer</label>
-                    <select id="project-customer-<?php echo safe($project['project_id']); ?>" name="customer_id" required>
-                      <option value="">-- Select Customer --</option>
-                      <?php foreach ($customerOptions as $option): ?>
-                        <option value="<?php echo safe($option['value']); ?>" <?php echo $project['customer_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-                      <?php endforeach; ?>
-                    </select>
-                  </div>
-                  <div>
-                    <label class="label" for="contract-date-<?php echo safe($project['project_id']); ?>">Contract Date</label>
-                    <input id="contract-date-<?php echo safe($project['project_id']); ?>" name="contract_date" type="date" value="<?php echo safe($project['contract_date']); ?>" />
-                  </div>
-                  <div>
-                    <label class="label" for="expected-date-<?php echo safe($project['project_id']); ?>">Expected End Date</label>
-                    <input id="expected-date-<?php echo safe($project['project_id']); ?>" name="expected_end_date" type="date" value="<?php echo safe($project['expected_end_date']); ?>" />
-                  </div>
-                  <div>
-                    <label class="label" for="actual-date-<?php echo safe($project['project_id']); ?>">Actual End Date</label>
-                    <input id="actual-date-<?php echo safe($project['project_id']); ?>" name="actual_end_date" type="date" value="<?php echo safe($project['actual_end_date']); ?>" />
-                  </div>
-                  <div>
-                    <label class="label" for="business-line-<?php echo safe($project['project_id']); ?>">Business Line</label>
-                    <select id="business-line-<?php echo safe($project['project_id']); ?>" name="business_line_id" required>
-                      <option value="">-- Select Business Line --</option>
-                      <?php foreach ($businessLineOptions as $option): ?>
-                        <option value="<?php echo safe($option['value']); ?>" <?php echo $project['business_line_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-                      <?php endforeach; ?>
-                    </select>
-                  </div>
-                </div>
-                <div class="actions" style="justify-content:flex-end; gap:10px;">
-                  <button class="btn btn-update" type="submit">Update project</button>
-                </div>
-              </form>
-              <form method="POST" action="projects.php" onsubmit="return confirm('Delete this project?');" style="display:flex; justify-content:flex-end;">
-                <input type="hidden" name="action" value="delete" />
-                <input type="hidden" name="project_id" value="<?php echo safe($project['project_id']); ?>" />
-                <button class="btn btn-delete" type="submit">Delete project</button>
-              </form>
-            </div>
-          </div>
-
-          <div class="message-modal project-modal" data-details-modal="<?php echo safe($project['project_id']); ?>" role="dialog" aria-modal="true" aria-label="Project details for <?php echo safe($project['project_name']); ?>">
-            <div class="message-dialog">
-              <div class="message-dialog__header">
-                <span class="message-title">Project details</span>
-                <button class="message-close" type="button" aria-label="Close project details" data-close-modal>&times;</button>
-              </div>
-              <div class="details-grid">
-                <div class="details-grid__item">
-                  <h5>Name</h5>
-                  <p><?php echo safe($project['project_name']); ?></p>
-                </div>
-                <div class="details-grid__item">
-                  <h5>Customer</h5>
-                  <p><?php echo safe($project['customer_name'] ?: $project['customer_id'] ?: '—'); ?></p>
-                </div>
-                <div class="details-grid__item">
-                  <h5>Business line</h5>
-                  <p><?php echo safe($project['business_line_name'] ?: '—'); ?></p>
-                </div>
-                <div class="details-grid__item">
-                  <h5>PO number</h5>
-                  <p><?php echo safe($project['po_number'] ?: '—'); ?></p>
-                </div>
-                <div class="details-grid__item">
-                  <h5>Cost center</h5>
-                  <p><?php echo safe($project['cost_center_no'] ?: '—'); ?></p>
-                </div>
-                <div class="details-grid__item">
-                  <h5>Contract date</h5>
-                  <p><?php echo safe($project['contract_date'] ?: '—'); ?></p>
-                </div>
-                <div class="details-grid__item">
-                  <h5>Expected end</h5>
-                  <p><?php echo safe($project['expected_end_date'] ?: '—'); ?></p>
-                </div>
-                <div class="details-grid__item">
-                  <h5>Actual end</h5>
-                  <p><?php echo safe($project['actual_end_date'] ?: '—'); ?></p>
-                </div>
-              </div>
-            </div>
-          </div>
-        <?php endforeach; ?>
+          <?php endforeach; ?>
         </div>
       </form>
+
+      <?php foreach ($projects as $project): ?>
+        <div class="message-modal project-modal" data-manage-modal="<?php echo safe($project['project_id']); ?>" role="dialog" aria-modal="true" aria-label="Manage project <?php echo safe($project['project_name']); ?>">
+          <div class="message-dialog">
+            <div class="message-dialog__header">
+              <span class="message-title">Manage <?php echo safe($project['project_name']); ?></span>
+              <button class="message-close" type="button" aria-label="Close manage project" data-close-modal>&times;</button>
+            </div>
+            <form method="POST" action="projects.php" style="display:grid; gap:12px;">
+              <input type="hidden" name="action" value="update" />
+              <input type="hidden" name="project_id" value="<?php echo safe($project['project_id']); ?>" />
+              <div class="project-form-grid">
+                <div>
+                  <label class="label" for="project-name-<?php echo safe($project['project_id']); ?>">Project Name</label>
+                  <input id="project-name-<?php echo safe($project['project_id']); ?>" name="project_name" type="text" value="<?php echo safe($project['project_name']); ?>" required />
+                </div>
+                <div>
+                  <label class="label" for="cost-center-<?php echo safe($project['project_id']); ?>">Cost Center No</label>
+                  <input id="cost-center-<?php echo safe($project['project_id']); ?>" name="cost_center_no" type="text" value="<?php echo safe($project['cost_center_no']); ?>" />
+                </div>
+                <div>
+                  <label class="label" for="po-number-<?php echo safe($project['project_id']); ?>">PO Number</label>
+                  <input id="po-number-<?php echo safe($project['project_id']); ?>" name="po_number" type="text" value="<?php echo safe($project['po_number']); ?>" />
+                </div>
+                <div>
+                  <label class="label" for="project-customer-<?php echo safe($project['project_id']); ?>">Customer</label>
+                  <select id="project-customer-<?php echo safe($project['project_id']); ?>" name="customer_id" required>
+                    <option value="">-- Select Customer --</option>
+                    <?php foreach ($customerOptions as $option): ?>
+                      <option value="<?php echo safe($option['value']); ?>" <?php echo $project['customer_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div>
+                  <label class="label" for="contract-date-<?php echo safe($project['project_id']); ?>">Contract Date</label>
+                  <input id="contract-date-<?php echo safe($project['project_id']); ?>" name="contract_date" type="date" value="<?php echo safe($project['contract_date']); ?>" />
+                </div>
+                <div>
+                  <label class="label" for="expected-date-<?php echo safe($project['project_id']); ?>">Expected End Date</label>
+                  <input id="expected-date-<?php echo safe($project['project_id']); ?>" name="expected_end_date" type="date" value="<?php echo safe($project['expected_end_date']); ?>" />
+                </div>
+                <div>
+                  <label class="label" for="actual-date-<?php echo safe($project['project_id']); ?>">Actual End Date</label>
+                  <input id="actual-date-<?php echo safe($project['project_id']); ?>" name="actual_end_date" type="date" value="<?php echo safe($project['actual_end_date']); ?>" />
+                </div>
+                <div>
+                  <label class="label" for="business-line-<?php echo safe($project['project_id']); ?>">Business Line</label>
+                  <select id="business-line-<?php echo safe($project['project_id']); ?>" name="business_line_id" required>
+                    <option value="">-- Select Business Line --</option>
+                    <?php foreach ($businessLineOptions as $option): ?>
+                      <option value="<?php echo safe($option['value']); ?>" <?php echo $project['business_line_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+              <div class="actions" style="justify-content:flex-end; gap:10px;">
+                <button class="btn btn-update" type="submit">Update project</button>
+              </div>
+            </form>
+            <form method="POST" action="projects.php" onsubmit="return confirm('Delete this project?');" style="display:flex; justify-content:flex-end;">
+              <input type="hidden" name="action" value="delete" />
+              <input type="hidden" name="project_id" value="<?php echo safe($project['project_id']); ?>" />
+              <button class="btn btn-delete" type="submit">Delete project</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="message-modal project-modal" data-details-modal="<?php echo safe($project['project_id']); ?>" role="dialog" aria-modal="true" aria-label="Project details for <?php echo safe($project['project_name']); ?>">
+          <div class="message-dialog">
+            <div class="message-dialog__header">
+              <span class="message-title">Project details</span>
+              <button class="message-close" type="button" aria-label="Close project details" data-close-modal>&times;</button>
+            </div>
+            <div class="details-grid">
+              <div class="details-grid__item">
+                <h5>Name</h5>
+                <p><?php echo safe($project['project_name']); ?></p>
+              </div>
+              <div class="details-grid__item">
+                <h5>Customer</h5>
+                <p><?php echo safe($project['customer_name'] ?: $project['customer_id'] ?: '—'); ?></p>
+              </div>
+              <div class="details-grid__item">
+                <h5>Business line</h5>
+                <p><?php echo safe($project['business_line_name'] ?: '—'); ?></p>
+              </div>
+              <div class="details-grid__item">
+                <h5>PO number</h5>
+                <p><?php echo safe($project['po_number'] ?: '—'); ?></p>
+              </div>
+              <div class="details-grid__item">
+                <h5>Cost center</h5>
+                <p><?php echo safe($project['cost_center_no'] ?: '—'); ?></p>
+              </div>
+              <div class="details-grid__item">
+                <h5>Contract date</h5>
+                <p><?php echo safe($project['contract_date'] ?: '—'); ?></p>
+              </div>
+              <div class="details-grid__item">
+                <h5>Expected end</h5>
+                <p><?php echo safe($project['expected_end_date'] ?: '—'); ?></p>
+              </div>
+              <div class="details-grid__item">
+                <h5>Actual end</h5>
+                <p><?php echo safe($project['actual_end_date'] ?: '—'); ?></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      <?php endforeach; ?>
     </div>
   </main>
 
