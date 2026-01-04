@@ -262,14 +262,22 @@ input:focus, select:focus, textarea:focus {
 }
 
 .btn {
-  border: none;
+  --btn-bg: var(--secondary);
+  --btn-color: #fff;
+  --btn-border: var(--secondary);
+  --btn-hover-bg: #fff;
+  --btn-hover-color: var(--secondary);
+
+  background: var(--btn-bg);
+  color: var(--btn-color);
+  border: 1.5px solid var(--btn-border);
   padding: 12px 18px;
   border-radius: var(--input-radius);
   cursor: pointer;
   font-weight: 700;
   letter-spacing: 0.3px;
   box-shadow: var(--shadow);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -279,33 +287,63 @@ input:focus, select:focus, textarea:focus {
 .btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+.btn:hover,
+.btn:focus-visible,
+.btn:active {
+  background: var(--btn-hover-bg);
+  color: var(--btn-hover-color);
+  border-color: var(--btn-border);
+}
+
+.btn-save {
+  --btn-bg: var(--accent-success);
+  --btn-color: #fff;
+  --btn-border: var(--accent-success);
+  --btn-hover-color: var(--accent-success);
+}
+
+.btn-neutral {
+  --btn-bg: #f1f3f5;
+  --btn-color: #222;
+  --btn-border: #f1f3f5;
+  --btn-hover-color: #222;
+}
+
+.btn-neutral:hover{
+  background: rgb(49, 49, 49);
   color: white;
 }
 
-.btn-save { background: var(--accent-success); color: #fff; }␊
-.btn-delete { background: var(--secondary); color: #fff; border: 1.5px solid var(--secondary); }
-.btn-neutral { background: #f1f3f5; color: #222; }
-.btn-update { background: #0d3b66; color: #fff; }
-.btn-view { background: #17a2b8; color: #fff; }
-.btn-clear { background: #e9ecef; color: #222; }
-.btn-filter {
-  background: var(--secondary);
-  color: #fff;
-  border: 1.5px solid var(--secondary);
+.btn-update {
+  --btn-bg: #0d3b66;
+  --btn-color: #fff;
+  --btn-border: #0d3b66;
+  --btn-hover-color: #0d3b66;
 }
 
-.btn-reset {
-  background: var(--secondary);
-  color: #fff;
-  border: 1.5px solid var(--secondary);
+.btn-view {
+  --btn-bg: #17a2b8;
+  --btn-color: #fff;
+  --btn-border: #17a2b8;
+  --btn-hover-color: #17a2b8;
 }
 
-.btn-filter:hover,
-.btn-reset:hover,
-.btn-delete:hover {
-  background: #a50f15;
-  color: #fff;
-  border-color: #a50f15;
+.btn-clear {
+  --btn-bg: #e9ecef;
+  --btn-color: #222;
+  --btn-border: #e9ecef;
+  --btn-hover-color: #222;
+}
+
+.btn-filter,
+.btn-reset,
+.btn-delete {
+  --btn-bg: var(--secondary);
+  --btn-color: #fff;
+  --btn-border: var(--secondary);
+  --btn-hover-color: var(--secondary);
 }
 
 .table-wrapper {
