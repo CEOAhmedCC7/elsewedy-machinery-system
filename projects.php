@@ -6,6 +6,7 @@ $moduleCode = resolve_module_code('PROJECTS');
 
 $error = '';
 $success = '';
+$successHtml = '';
 $modalOverride = null;
 
 $pdo = null;
@@ -104,11 +105,13 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'Business Line' => option_label($businessLineOptions, $submitted['business_line_id']),
             ];
 
-            $success = 'Project created successfully (ID #' . $newId . '). Details: ' . implode(' | ', array_map(
-                static fn ($label, $value) => $label . ': ' . $value,
-                array_keys($successDetails),
-                array_values($successDetails)
-            ));
+            $successRows = '';
+            foreach ($successDetails as $label => $value) {
+                $successRows .= '<tr><th>' . safe($label) . '</th><td>' . safe($value) . '</td></tr>';
+            }
+
+            $success = 'Project created successfully (ID #' . $newId . ').';
+            $successHtml = $success . '<div class="message-table__wrapper"><table class="message-table">' . $successRows . '</table></div>';
             $submitted = array_map(static fn () => '', $submitted);
         } elseif ($action === 'update') {
             if ($submitted['project_id'] === '') {
@@ -352,6 +355,39 @@ if ($pdo) {
       margin: 0;
       color: var(--text);
     }
+
+    .message-table__wrapper {
+      margin-top: 8px;
+      overflow-x: auto;
+    }
+
+    .message-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .message-table th,
+    .message-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .message-table th {
+      width: 40%;
+      text-align: left;
+      background: rgba(0, 0, 0, 0.03);
+      font-weight: 600;
+      color: var(--secondary);
+    }
+
+    .message-table tr:last-child th,
+    .message-table tr:last-child td {
+      border-bottom: none;
+    }
   </style>
   <script src="./assets/app.js" defer></script>
 </head>
@@ -371,6 +407,10 @@ if ($pdo) {
     </div>
   </header>
 
+   <?php
+    $messageBody = $modalOverride['subtitle'] ?? ($error !== '' ? safe($error) : ($successHtml !== '' ? $successHtml : safe($success)));
+  ?>
+
   <?php if ($error !== '' || $success !== ''): ?>
     <div class="message-modal is-visible" role="alertdialog" aria-live="assertive" aria-label="Projects notification" data-dismissable>
       <div class="message-dialog <?php echo $error ? 'is-error' : 'is-success'; ?>">
@@ -378,7 +418,7 @@ if ($pdo) {
           <span class="message-title"><?php echo $modalOverride['title'] ?? ($error ? 'Action needed' : 'Success'); ?></span>
           <button class="message-close" type="button" aria-label="Close message" data-close-modal>&times;</button>
         </div>
-        <p class="message-body"><?php echo safe($modalOverride['subtitle'] ?? ($error !== '' ? $error : $success)); ?></p>
+        <div class="message-body"><?php echo $messageBody; ?></div>
       </div>
     </div>
   <?php endif; ?>
