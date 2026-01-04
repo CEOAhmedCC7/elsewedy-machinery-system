@@ -33,6 +33,13 @@ $submitted = [
     'business_line_id' => trim($_POST['business_line_id'] ?? ''),
 ];
 
+$contractTimestamp = $submitted['contract_date'] !== '' ? strtotime($submitted['contract_date']) : time();
+$defaultExpectedEndDate = date('Y-m-d', strtotime('+3 days', $contractTimestamp ?: time()));
+
+if ($submitted['expected_end_date'] === '' && ($_SERVER['REQUEST_METHOD'] !== 'POST' || ($_POST['action'] ?? '') === 'create')) {
+    $submitted['expected_end_date'] = $defaultExpectedEndDate;
+}
+
 if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $permissionError = enforce_action_permission(
@@ -62,7 +69,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Please choose a business line.');
             }
 
-            $stmt = $pdo->prepare('INSERT INTO projects (project_name, cost_center_no, po_number, customer_id, contract_date, expected_end_date, actual_end_date, business_line_id) VALUES (:name, NULLIF(:cost, ""), NULLIF(:po, ""), :customer, NULLIF(:contract, "")::date, NULLIF(:expected, "")::date, NULLIF(:actual, "")::date, :business)');
+           $stmt = $pdo->prepare("INSERT INTO projects (project_name, cost_center_no, po_number, customer_id, contract_date, expected_end_date, actual_end_date, business_line_id) VALUES (:name, NULLIF(:cost, ''), NULLIF(:po, ''), :customer, NULLIF(:contract, '')::date, NULLIF(:expected, '')::date, NULLIF(:actual, '')::date, :business)");
             $stmt->execute([
                 ':name' => $submitted['project_name'],
                 ':cost' => $submitted['cost_center_no'],
@@ -91,7 +98,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Please choose a business line.');
             }
 
-            $stmt = $pdo->prepare('UPDATE projects SET project_name = :name, cost_center_no = NULLIF(:cost, ""), po_number = NULLIF(:po, ""), customer_id = :customer, contract_date = NULLIF(:contract, "")::date, expected_end_date = NULLIF(:expected, "")::date, actual_end_date = NULLIF(:actual, "")::date, business_line_id = :business WHERE project_id = :id');
+             $stmt = $pdo->prepare("UPDATE projects SET project_name = :name, cost_center_no = NULLIF(:cost, ''), po_number = NULLIF(:po, ''), customer_id = :customer, contract_date = NULLIF(:contract, '')::date, expected_end_date = NULLIF(:expected, '')::date, actual_end_date = NULLIF(:actual, '')::date, business_line_id = :business WHERE project_id = :id");
             $stmt->execute([
                 ':id' => $submitted['project_id'],
                 ':name' => $submitted['project_name'],
@@ -213,7 +220,7 @@ if ($pdo) {
     .project-grid {
       display: grid;
       gap: 12px;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     }
 
     .project-card {
@@ -237,11 +244,13 @@ if ($pdo) {
       outline: none;
     }
 
-    .project-card h4,
+.project-card h4,
     .project-card p,
     .project-card small {
       color: #fff;
       margin: 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .project-card__footer {
@@ -622,6 +631,35 @@ if ($pdo) {
       const openCreateButtons = document.querySelectorAll('[data-open-create]');
       const createModal = document.getElementById('create-project-modal');
 
+      const setDefaultExpectedDate = (contractInput, expectedInput) => {
+        if (!contractInput || !expectedInput) return;
+
+        const updateExpected = () => {
+          const contractValue = contractInput.value;
+          const expectedWasAuto = expectedInput.dataset.autofilled === 'true';
+
+          if (!contractValue) return;
+
+          if (expectedInput.value === '' || expectedWasAuto) {
+            const contractDate = new Date(contractValue);
+            if (Number.isNaN(contractDate.getTime())) return;
+
+            contractDate.setDate(contractDate.getDate() + 3);
+            const adjusted = contractDate.toISOString().split('T')[0];
+            expectedInput.value = adjusted;
+            expectedInput.dataset.autofilled = 'true';
+          }
+        };
+
+        contractInput.addEventListener('change', updateExpected);
+        contractInput.addEventListener('input', updateExpected);
+        expectedInput.addEventListener('input', () => {
+          expectedInput.dataset.autofilled = 'false';
+        });
+
+        updateExpected();
+      };
+
       const hideModal = (modal) => {
         if (modal) {
           modal.classList.remove('is-visible');
@@ -653,9 +691,14 @@ if ($pdo) {
         if (event.key === 'Escape') {
           document.querySelectorAll('.message-modal.is-visible').forEach((modal) => hideModal(modal));
         }
-      });
+       });
 
       openCreateButtons.forEach((button) => button.addEventListener('click', () => showModal(createModal)));
+
+      setDefaultExpectedDate(
+        document.getElementById('project-start'),
+        document.getElementById('project-end')
+      );
 
       document.querySelectorAll('[data-open-manage]').forEach((button) => {
         const target = button.getAttribute('data-open-manage');
@@ -671,6 +714,12 @@ if ($pdo) {
         if (!modal) return;
 
         button.addEventListener('click', () => showModal(modal));
+      });
+
+      document.querySelectorAll('input[id^="contract-date-"]').forEach((contractInput) => {
+        const projectId = contractInput.id.replace('contract-date-', '');
+        const expectedInput = document.getElementById(`expected-date-${projectId}`);
+        setDefaultExpectedDate(contractInput, expectedInput);
       });
     });
   </script>
