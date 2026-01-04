@@ -199,6 +199,34 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $success = 'Sub-batch deleted successfully.';
+        } elseif ($action === 'bulk_delete_sub_batches') {
+            $selectedIds = array_filter(array_map('intval', (array) ($_POST['selected_ids'] ?? [])));
+            $batchId = (int) ($_POST['batch_id'] ?? 0);
+            $projectId = (int) ($_POST['project_id'] ?? 0);
+
+            if (!$selectedIds) {
+                throw new RuntimeException('Select at least one sub-batch to delete.');
+            }
+            if ($batchId <= 0 || $projectId <= 0) {
+                throw new RuntimeException('Choose a batch before deleting sub-batches.');
+            }
+
+            $batchCheck = $pdo->prepare('SELECT project_id FROM batches WHERE batch_id = :id');
+            $batchCheck->execute([':id' => $batchId]);
+            $batchRow = $batchCheck->fetch();
+
+            if (!$batchRow) {
+                throw new RuntimeException('Batch not found.');
+            }
+            if ((int) $batchRow['project_id'] !== $projectId) {
+                throw new RuntimeException('This batch does not belong to the selected project.');
+            }
+
+            $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+            $delete = $pdo->prepare("DELETE FROM sub_batch_details WHERE batch_id = ? AND sub_batch_detail_id IN ({$placeholders})");
+            $delete->execute(array_merge([$batchId], $selectedIds));
+
+            $success = $delete->rowCount() . ' sub-batch(es) removed.';
         }
     } catch (Throwable $e) {
         $error = $error ?: format_db_error($e, 'sub-batches');
@@ -328,6 +356,43 @@ if ($pdo) {
         overflow-y: auto;
         padding-right: 4px;
       }
+
+       .batch-card__select {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* background: rgba(0, 0, 0, 0.35); */
+    padding: 8px;
+    border-radius: 10px;
+  }
+
+  .batch-card__select input[type="checkbox"] {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid #fff;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  }
+
+  .batch-card__select input[type="checkbox"]:checked {
+    background: var(--secondary);
+    border-color: var(--secondary);
+    box-shadow: inset 0 0 0 2px #282828;
+  }
+
+  .batch-card__select input[type="checkbox"]:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+
     </style>
   </head>
   <body class="page">
@@ -411,15 +476,24 @@ if ($pdo) {
               <div class="empty-state">Batch not found.</div>
             <?php else: ?>
               <div class="module-card module-card--no-image" style="padding:16px; display:grid; gap:12px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                 <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
                   <h3 style="margin:0;">Sub-batches</h3>
                   <span class="module-card__status <?php echo $subBatches ? 'module-card__status--allowed' : 'module-card__status--blocked'; ?>"><?php echo $subBatches ? sprintf('%d sub-batches', count($subBatches)) : 'No sub-batches'; ?></span>
                 </div>
 
                 <?php if ($subBatches): ?>
+                  <form id="bulk-delete-form" method="POST" action="sub-batches.php?batch_id=<?php echo safe($selectedBatch['batch_id']); ?>" style="display:flex; justify-content:flex-end; gap:10px;">
+                    <input type="hidden" name="action" value="bulk_delete_sub_batches" />
+                    <input type="hidden" name="batch_id" value="<?php echo safe($selectedBatch['batch_id']); ?>" />
+                    <input type="hidden" name="project_id" value="<?php echo safe($selectedBatch['project_id']); ?>" />
+                    <button class="btn btn-delete" type="submit">Delete selected</button>
+                  </form>
                   <div class="batch-grid">
                     <?php foreach ($subBatches as $sub): ?>
                       <div class="module-card module-card--no-image batches-card" style="display:flex; flex-direction:column; gap:8px; position:relative; padding:12px;">
+                        <label class="batch-card__select" title="Select sub-batch" aria-label="Select sub-batch">
+                          <input type="checkbox" name="selected_ids[]" value="<?php echo safe($sub['sub_batch_detail_id']); ?>" form="bulk-delete-form" />
+                        </label>
                         <div class="module-card__body" style="margin:0; display:grid; gap:6px; align-content:start;">
                           <h4 style="margin:0; color:#fff;">Sub-batch: <?php echo safe($sub['sub_batch_name']); ?></h4>
                           <p style="margin:0; color:#e6e6e6;">
