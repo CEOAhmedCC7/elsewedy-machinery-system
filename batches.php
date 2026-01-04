@@ -405,12 +405,34 @@ if ($pdo) {
     right: 10px;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    color: #fff;
-    background: rgba(0, 0, 0, 0.4);
-    padding: 4px 8px;
-    border-radius: 8px;
-    font-size: 12px;
+    justify-content: center;
+    /* background: rgba(0, 0, 0, 0.35); */
+    padding: 8px;
+    border-radius: 10px;
+  }
+
+  .batch-card__select input[type="checkbox"] {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid #fff;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  }
+
+  .batch-card__select input[type="checkbox"]:checked {
+    background: var(--secondary);
+    border-color: var(--secondary);
+    box-shadow: inset 0 0 0 2px #282828;
+  }
+
+  .batch-card__select input[type="checkbox"]:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
   }
 
  .batch-grid .batches-card__footer .btn,
@@ -563,12 +585,12 @@ if ($pdo) {
               <button class="btn btn-save" type="button" data-open-batch-modal>Create batches</button>
             </div>
           <?php else: ?>
-            <form method="POST" action="batches.php?project_id=<?php echo safe($projectDetail['project_id']); ?>" onsubmit="return confirm('Delete selected batches?');" style="display:grid; gap:12px;">
-              <input type="hidden" name="action" value="bulk_delete_batches" />
-              <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
-              <div class="actions" style="justify-content:flex-end; gap:10px;">
+            <div style="display:grid; gap:12px;">
+              <form id="bulk-delete-form" method="POST" action="batches.php?project_id=<?php echo safe($projectDetail['project_id']); ?>" style="display:flex; justify-content:flex-end; gap:10px;">
+                <input type="hidden" name="action" value="bulk_delete_batches" />
+                <input type="hidden" name="project_id" value="<?php echo safe($projectDetail['project_id']); ?>" />
                 <button class="btn btn-delete" type="submit">Delete selected</button>
-              </div>
+              </form>
               <div class="batch-grid">
                 <?php foreach ($projectBatches as $batch): ?>
                   <?php $subBatches = $subBatchesByBatch[(int) $batch['batch_id']] ?? []; ?>
@@ -578,9 +600,8 @@ if ($pdo) {
                     $statusLabel = $hasSubBatches ? sprintf('%d sub-batches', count($subBatches)) : 'No sub-batches';
                   ?>
                   <div class="module-card module-card--no-image batches-card" style="display:flex; flex-direction:column; gap:10px; position:relative;">
-                    <label class="batch-card__select">
-                      <input type="checkbox" name="selected_ids[]" value="<?php echo safe($batch['batch_id']); ?>" />
-                      <small>Select</small>
+                    <label class="batch-card__select" title="Select batch" aria-label="Select batch">
+                      <input type="checkbox" name="selected_ids[]" value="<?php echo safe($batch['batch_id']); ?>" form="bulk-delete-form" />
                     </label>
                     <span class="module-card__status batches-card__status <?php echo safe($statusClass); ?>" aria-label="Sub-batch availability"><?php echo safe($statusLabel); ?></span>
                     <div class="module-card__body" style="flex:1; display:grid; gap:6px; align-content:start;">
@@ -618,7 +639,7 @@ if ($pdo) {
                   </div>
                 <?php endforeach; ?>
               </div>
-            </form>
+            </div>
           <?php endif; ?>
         <?php endif; ?>
       <?php endif; ?>
@@ -801,6 +822,24 @@ if ($pdo) {
         });
 
         baseInput?.addEventListener('input', prefillNamesFromBase);
+      }
+
+      const bulkDeleteForm = document.getElementById('bulk-delete-form');
+      if (bulkDeleteForm) {
+        const batchCheckboxes = document.querySelectorAll('input[name="selected_ids[]"]');
+
+        bulkDeleteForm.addEventListener('submit', (event) => {
+          const hasSelection = Array.from(batchCheckboxes).some((checkbox) => checkbox.checked);
+          if (!hasSelection) {
+            event.preventDefault();
+            alert('Select at least one batch to delete.');
+            return;
+          }
+
+          if (!confirm('Delete selected batches?')) {
+            event.preventDefault();
+          }
+        });
       }
     });
   </script>
