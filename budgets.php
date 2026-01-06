@@ -2,10 +2,23 @@
 require_once __DIR__ . '/helpers.php';
 
 $currentUser = require_login();
+
 $projects = fetch_table('projects', 'project_id');
 $subBatchDetails = fetch_table('sub_batch_details', 'sub_batch_detail_id');
+
 $projectOptions = to_options($projects, 'project_id', 'project_name');
 $subBatchOptions = to_options($subBatchDetails, 'sub_batch_detail_id', 'sub_batch_name');
+
+function option_label(array $options, string $value): string
+{
+    foreach ($options as $option) {
+        if ((string) ($option['value'] ?? '') === $value) {
+            return (string) ($option['label'] ?? $value);
+        }
+    }
+
+    return $value;
+}
 
 $error = '';
 $success = '';
@@ -26,6 +39,7 @@ $submitted = [
     'supplier_cost_currency' => trim($_POST['supplier_cost_currency'] ?? 'EGP'),
     'supplier_cost_exchange_rate' => trim($_POST['supplier_cost_exchange_rate'] ?? ''),
 ];
+
 $selectedIds = array_filter(array_map('trim', (array) ($_POST['selected_ids'] ?? [])));
 $costTypes = ['Materials', 'Freight', 'Customs', 'Services', 'Other'];
 
@@ -114,45 +128,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $success = 'Budget updated successfully.';
                 }
             }
-        } elseif ($action === 'view') {
-            $criteria = [];
-            $params = [];
-
-            if ($submitted['budget_id'] !== '') {
-                $criteria[] = 'budget_id = :id';
-                $params[':id'] = $submitted['budget_id'];
-            }
-            if ($submitted['project_id'] !== '') {
-                $criteria[] = 'project_id = :project';
-                $params[':project'] = $submitted['project_id'];
-            }
-            if ($submitted['sub_batch_detail_id'] !== '') {
-                $criteria[] = 'sub_batch_detail_id = :sub_batch';
-                $params[':sub_batch'] = $submitted['sub_batch_detail_id'];
-            }
-            if ($submitted['cost_type'] !== '') {
-                $criteria[] = 'cost_type = :cost_type';
-                $params[':cost_type'] = $submitted['cost_type'];
-            }
-
-            if (!$criteria) {
-                $error = 'Provide at least one field to search.';
-            } else {
-                $where = implode(' OR ', $criteria);
-                $stmt = $pdo->prepare("SELECT * FROM budgets WHERE {$where} LIMIT 1");
-                $stmt->execute($params);
-                $found = $stmt->fetch();
-
-                if ($found) {
-                    foreach ($submitted as $key => $_) {
-                        $submitted[$key] = (string) ($found[$key] ?? ($key === 'scope' ? '' : ''));
-                    }
-                    $submitted['scope'] = $found['project_id'] ? 'project' : 'sub-batch';
-                    $success = 'Budget loaded. You can update or delete it.';
-                } else {
-                    $error = 'No budget found with those details.';
-                }
-            }
         } elseif ($action === 'delete') {
             if ($submitted['budget_id'] === '') {
                 $error = 'Enter a Budget ID to delete.';
@@ -204,6 +179,100 @@ $budgetIdOptions = array_column($budgets, 'budget_id');
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Budgets | Elsewedy Machinery</title>
   <link rel="stylesheet" href="./assets/styles.css" />
+  <style>
+    .budget-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    }
+
+    .budget-card {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: linear-gradient(135deg, #0b8dc0, #0f4b8c);
+      color: #fff;
+      border-radius: 10px;
+      padding: 14px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      min-height: 160px;
+      position: relative;
+      text-decoration: none;
+    }
+
+    .budget-card:hover,
+    .budget-card:focus-visible {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
+      outline: none;
+    }
+
+    .budget-card h4,
+    .budget-card p,
+    .budget-card small {
+      color: #fff;
+      margin: 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .budget-card__footer {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .budget-card__footer .btn,
+    .budget-card__footer a.btn {
+      flex: 1;
+      text-align: center;
+    }
+
+    .budget-card__select {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      border-radius: 10px;
+    }
+
+    .budget-card__select input[type="checkbox"] {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid #fff;
+      border-radius: 6px;
+      background: transparent;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+    }
+
+    .budget-card__select input[type="checkbox"]:checked {
+      background: var(--secondary);
+      border-color: var(--secondary);
+      box-shadow: inset 0 0 0 2px #ffffffff;
+    }
+
+    .budget-card__select input[type="checkbox"]:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+
+    .budget-modal .message-dialog {
+      max-width: 860px;
+    }
+
+    .budget-form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+  </style>
   <script src="./assets/app.js" defer></script>
 </head>
 <body class="page">
@@ -221,24 +290,189 @@ $budgetIdOptions = array_column($budgets, 'budget_id');
       <a class="logout-icon" href="./logout.php" aria-label="Logout">⎋</a>
     </div>
   </header>
+
+  <?php if ($error !== '' || $success !== ''): ?>
+    <div class="message-modal is-visible" role="alertdialog" aria-live="assertive" aria-label="Budgets notification">
+      <div class="message-dialog <?php echo $error ? 'is-error' : 'is-success'; ?>">
+        <div class="message-dialog__header">
+          <span class="message-title"><?php echo $error ? 'Action needed' : 'Success'; ?></span>
+          <button class="message-close" type="button" aria-label="Close message" data-close-modal>&times;</button>
+        </div>
+        <div class="message-body"><?php echo safe($error ?: $success); ?></div>
+      </div>
+    </div>
+  <?php endif; ?>
+
   <main style="padding:24px; display:grid; gap:20px;">
-    <div class="form-container">
-      <h3 style="margin-top:0; color:var(--secondary);">Create, View, Update or Delete Budgets</h3>
-      <?php if ($error): ?>
-        <div class="alert" style="color: var(--secondary); margin-bottom:12px;">
-          <?php echo safe($error); ?>
+    <div class="form-container" style="display:grid; gap:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+        <div>
+          <h3 style="margin:0; color:var(--secondary);">Create, view, update or delete budgets</h3>
+          <p style="margin:6px 0 0; color:var(--muted);">Use the create button to add budgets, then manage or review them from the cards below.</p>
         </div>
-      <?php elseif ($success): ?>
-        <div class="alert" style="color: var(--primary); margin-bottom:12px;">
-          <?php echo safe($success); ?>
-        </div>
+        <button class="btn btn-save" type="button" data-open-create style="white-space:nowrap;">Create budget</button>
+      </div>
+
+      <?php if (!$budgets): ?>
+        <div class="alert" style="margin:0;">No budgets recorded yet. Click "Create budget" to add one.</div>
+      <?php else: ?>
+        <form method="POST" action="budgets.php" style="display:grid; gap:10px;">
+          <input type="hidden" name="action" value="bulk_delete" />
+          <div class="actions" style="justify-content:flex-start; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-delete" type="submit" onclick="return confirm('Delete selected budgets?');">Delete selected</button>
+            <button class="btn btn-neutral" type="button" onclick="exportSelected('budgets-table')">Download Excel</button>
+          </div>
+          <div class="budget-grid">
+            <?php foreach ($budgets as $budget): ?>
+              <?php
+                $scope = $budget['project_id'] ? 'Project' : 'Sub-batch';
+                $linkId = $budget['project_id'] ?: $budget['sub_batch_detail_id'];
+                $linkLabel = $budget['project_id']
+                  ? option_label($projectOptions, (string) $budget['project_id'])
+                  : option_label($subBatchOptions, (string) $budget['sub_batch_detail_id']);
+              ?>
+              <div class="module-card module-card--no-image budget-card" tabindex="0">
+                <label class="budget-card__select" title="Select budget" aria-label="Select budget">
+                  <input type="checkbox" name="selected_ids[]" value="<?php echo safe($budget['budget_id']); ?>" />
+                </label>
+                <div class="module-card__body" style="display:grid; gap:6px; align-content:start;">
+                  <h4><?php echo safe($budget['budget_id']); ?></h4>
+                  <p><small><?php echo safe($scope); ?>: <?php echo safe($linkLabel ?: $linkId ?: '—'); ?></small></p>
+                  <p><small>Cost type: <?php echo safe($budget['cost_type'] ?: '—'); ?></small></p>
+                  <p><small>Revenue: <?php echo safe(($budget['revenue_currency'] ?? '') . ' ' . ($budget['revenue_amount'] ?? '')); ?></small></p>
+                  <p><small>Freight: <?php echo safe(($budget['freight_currency'] ?? '') . ' ' . ($budget['freight_amount'] ?? '')); ?></small></p>
+                  <p><small>Supplier: <?php echo safe(($budget['supplier_cost_currency'] ?? '') . ' ' . ($budget['supplier_cost_amount'] ?? '')); ?></small></p>
+                </div>
+                <div class="budget-card__footer">
+                  <button class="btn btn-update" type="button" data-open-manage="<?php echo safe($budget['budget_id']); ?>">Manage</button>
+                </div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </form>
       <?php endif; ?>
 
-      <form method="POST" action="budgets.php">
-        <div class="form-row">
+      <?php foreach ($budgets as $budget): ?>
+        <div class="message-modal budget-modal" data-manage-modal="<?php echo safe($budget['budget_id']); ?>" role="dialog" aria-modal="true" aria-label="Manage budget <?php echo safe($budget['budget_id']); ?>">
+          <div class="message-dialog">
+            <div class="message-dialog__header">
+              <span class="message-title">Manage budget <?php echo safe($budget['budget_id']); ?></span>
+              <button class="message-close" type="button" aria-label="Close manage budget" data-close-modal>&times;</button>
+            </div>
+            <form method="POST" action="budgets.php" style="display:grid; gap:12px;">
+              <input type="hidden" name="action" value="update" />
+              <input type="hidden" name="budget_id" value="<?php echo safe($budget['budget_id']); ?>" />
+              <div class="budget-form-grid">
+                <div>
+                  <label class="label">Scope</label>
+                  <div style="display:flex; gap:10px; align-items:center;">
+                    <label><input type="radio" name="budget_scope" value="project" <?php echo $budget['project_id'] ? 'checked' : ''; ?> /> Project</label>
+                    <label><input type="radio" name="budget_scope" value="sub-batch" <?php echo $budget['sub_batch_detail_id'] ? 'checked' : ''; ?> /> Sub-Batch Detail</label>
+                  </div>
+                </div>
+                <div>
+                  <label class="label" for="project-<?php echo safe($budget['budget_id']); ?>">Project</label>
+                  <select id="project-<?php echo safe($budget['budget_id']); ?>" name="project_id">
+                    <option value="">-- Select Project --</option>
+                    <?php foreach ($projectOptions as $option): ?>
+                      <option value="<?php echo safe($option['value']); ?>" <?php echo $budget['project_id'] == $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['value'] . ' | ' . $option['label']); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div>
+                  <label class="label" for="sub-batch-<?php echo safe($budget['budget_id']); ?>">Sub-Batch Detail</label>
+                  <select id="sub-batch-<?php echo safe($budget['budget_id']); ?>" name="sub_batch_detail_id">
+                    <option value="">-- Select Sub-Batch --</option>
+                    <?php foreach ($subBatchOptions as $option): ?>
+                      <option value="<?php echo safe($option['value']); ?>" <?php echo $budget['sub_batch_detail_id'] == $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['value'] . ' | ' . $option['label']); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div>
+                  <label class="label" for="cost-type-<?php echo safe($budget['budget_id']); ?>">Cost Type</label>
+                  <select id="cost-type-<?php echo safe($budget['budget_id']); ?>" name="cost_type" required>
+                    <option value="">-- Select Cost Type --</option>
+                    <?php foreach ($costTypes as $type): ?>
+                      <option value="<?php echo safe($type); ?>" <?php echo $budget['cost_type'] === $type ? 'selected' : ''; ?>><?php echo safe($type); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div>
+                  <label class="label" for="revenue-amount-<?php echo safe($budget['budget_id']); ?>">Revenue Amount</label>
+                  <input id="revenue-amount-<?php echo safe($budget['budget_id']); ?>" name="revenue_amount" type="number" step="0.01" value="<?php echo safe($budget['revenue_amount']); ?>" />
+                </div>
+                <div>
+                  <label class="label" for="revenue-currency-<?php echo safe($budget['budget_id']); ?>">Revenue Currency</label>
+                  <select id="revenue-currency-<?php echo safe($budget['budget_id']); ?>" name="revenue_currency">
+                    <?php foreach (['EGP','USD','EUR'] as $currency): ?>
+                      <option value="<?php echo $currency; ?>" <?php echo ($budget['revenue_currency'] ?? 'EGP') === $currency ? 'selected' : ''; ?>><?php echo $currency; ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div>
+                  <label class="label" for="revenue-rate-<?php echo safe($budget['budget_id']); ?>">Revenue Exchange Rate</label>
+                  <input id="revenue-rate-<?php echo safe($budget['budget_id']); ?>" name="revenue_exchange_rate" type="number" step="0.0001" value="<?php echo safe($budget['revenue_exchange_rate']); ?>" />
+                </div>
+                <div>
+                  <label class="label" for="freight-amount-<?php echo safe($budget['budget_id']); ?>">Freight Amount</label>
+                  <input id="freight-amount-<?php echo safe($budget['budget_id']); ?>" name="freight_amount" type="number" step="0.01" value="<?php echo safe($budget['freight_amount']); ?>" />
+                </div>
+                <div>
+                  <label class="label" for="freight-currency-<?php echo safe($budget['budget_id']); ?>">Freight Currency</label>
+                  <select id="freight-currency-<?php echo safe($budget['budget_id']); ?>" name="freight_currency">
+                    <?php foreach (['EGP','USD','EUR'] as $currency): ?>
+                      <option value="<?php echo $currency; ?>" <?php echo ($budget['freight_currency'] ?? 'EGP') === $currency ? 'selected' : ''; ?>><?php echo $currency; ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div>
+                  <label class="label" for="freight-rate-<?php echo safe($budget['budget_id']); ?>">Freight Exchange Rate</label>
+                  <input id="freight-rate-<?php echo safe($budget['budget_id']); ?>" name="freight_exchange_rate" type="number" step="0.0001" value="<?php echo safe($budget['freight_exchange_rate']); ?>" />
+                </div>
+                <div>
+                  <label class="label" for="supplier-cost-<?php echo safe($budget['budget_id']); ?>">Supplier Cost Amount</label>
+                  <input id="supplier-cost-<?php echo safe($budget['budget_id']); ?>" name="supplier_cost_amount" type="number" step="0.01" value="<?php echo safe($budget['supplier_cost_amount']); ?>" />
+                </div>
+                <div>
+                  <label class="label" for="supplier-currency-<?php echo safe($budget['budget_id']); ?>">Supplier Currency</label>
+                  <select id="supplier-currency-<?php echo safe($budget['budget_id']); ?>" name="supplier_cost_currency">
+                    <?php foreach (['EGP','USD','EUR'] as $currency): ?>
+                      <option value="<?php echo $currency; ?>" <?php echo ($budget['supplier_cost_currency'] ?? 'EGP') === $currency ? 'selected' : ''; ?>><?php echo $currency; ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div>
+                  <label class="label" for="supplier-rate-<?php echo safe($budget['budget_id']); ?>">Supplier Exchange Rate</label>
+                  <input id="supplier-rate-<?php echo safe($budget['budget_id']); ?>" name="supplier_cost_exchange_rate" type="number" step="0.0001" value="<?php echo safe($budget['supplier_cost_exchange_rate']); ?>" />
+                </div>
+              </div>
+              <div class="actions" style="justify-content:flex-end; gap:10px;">
+                <button class="btn btn-update" type="submit">Update budget</button>
+              </div>
+            </form>
+            <form method="POST" action="budgets.php" onsubmit="return confirm('Delete this budget?');" style="display:flex; justify-content:flex-end;">
+              <input type="hidden" name="action" value="delete" />
+              <input type="hidden" name="budget_id" value="<?php echo safe($budget['budget_id']); ?>" />
+              <button class="btn btn-delete" type="submit">Delete budget</button>
+            </form>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </main>
+
+  <div class="message-modal budget-modal" id="create-budget-modal" role="dialog" aria-modal="true" aria-label="Create budget">
+    <div class="message-dialog">
+      <div class="message-dialog__header">
+        <span class="message-title">Create a new budget</span>
+        <button class="message-close" type="button" aria-label="Close create budget" data-close-modal>&times;</button>
+      </div>
+      <form method="POST" action="budgets.php" style="display:grid; gap:12px;">
+        <input type="hidden" name="action" value="create" />
+        <div class="budget-form-grid">
           <div>
             <label class="label" for="budget-id">Budget ID</label>
-            <input id="budget-id" name="budget_id" type="text" list="budget-id-options" placeholder="BUD-001" value="<?php echo safe($submitted['budget_id']); ?>" />
+            <input id="budget-id" name="budget_id" type="text" list="budget-id-options" placeholder="bud_1234" value="<?php echo safe($submitted['budget_id']); ?>" />
           </div>
           <div>
             <label class="label">Scope</label>
@@ -265,11 +499,9 @@ $budgetIdOptions = array_column($budgets, 'budget_id');
               <?php endforeach; ?>
             </select>
           </div>
-        </div>
-        <div class="form-row">
           <div>
             <label class="label" for="budget-type">Cost Type</label>
-            <select id="budget-type" name="cost_type">
+            <select id="budget-type" name="cost_type" required>
               <option value="">-- Select Cost Type --</option>
               <?php foreach ($costTypes as $type): ?>
                 <option value="<?php echo safe($type); ?>" <?php echo $submitted['cost_type'] === $type ? 'selected' : ''; ?>><?php echo safe($type); ?></option>
@@ -292,8 +524,6 @@ $budgetIdOptions = array_column($budgets, 'budget_id');
             <label class="label" for="revenue-rate">Revenue Exchange Rate</label>
             <input id="revenue-rate" name="revenue_exchange_rate" type="number" step="0.0001" placeholder="48.50" value="<?php echo safe($submitted['revenue_exchange_rate']); ?>" />
           </div>
-        </div>
-        <div class="form-row">
           <div>
             <label class="label" for="freight-amount">Freight Amount</label>
             <input id="freight-amount" name="freight_amount" type="number" step="0.01" placeholder="5000" value="<?php echo safe($submitted['freight_amount']); ?>" />
@@ -314,8 +544,6 @@ $budgetIdOptions = array_column($budgets, 'budget_id');
             <label class="label" for="supplier-cost">Supplier Cost Amount</label>
             <input id="supplier-cost" name="supplier_cost_amount" type="number" step="0.01" placeholder="7500" value="<?php echo safe($submitted['supplier_cost_amount']); ?>" />
           </div>
-        </div>
-        <div class="form-row">
           <div>
             <label class="label" for="supplier-currency">Supplier Currency</label>
             <select id="supplier-currency" name="supplier_cost_currency">
@@ -329,66 +557,95 @@ $budgetIdOptions = array_column($budgets, 'budget_id');
             <input id="supplier-rate" name="supplier_cost_exchange_rate" type="number" step="0.0001" placeholder="48.50" value="<?php echo safe($submitted['supplier_cost_exchange_rate']); ?>" />
           </div>
         </div>
-        <div class="actions">
-          <button class="btn btn-save" type="submit" name="action" value="create">Create New Budget</button>
-          <button class="btn btn-neutral" type="submit" name="action" value="view">View</button>
-          <button class="btn btn-neutral" type="submit" name="action" value="update">Update</button>
-          <button class="btn btn-delete" type="submit" name="action" value="delete" onclick="return confirm('Delete this budget?');">Delete</button>
+        <div class="actions" style="justify-content:flex-end; gap:10px;">
+          <button class="btn" type="button" data-close-modal>Cancel</button>
+          <button class="btn btn-save" type="submit">Create budget</button>
         </div>
       </form>
     </div>
+  </div>
 
-    <form method="POST" action="budgets.php">
-      <div class="table-actions">
-        <div class="filters">
-          <label class="label" for="multi-budget">Select Budgets</label>
-          <select id="multi-budget" name="selected_ids[]" multiple size="4">
-            <?php foreach ($budgets as $budget): ?>
-              <option value="<?php echo safe($budget['budget_id']); ?>"><?php echo safe($budget['budget_id'] . ' | ' . ($budget['cost_type'] ?? '')); ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="actions">
-          <button class="btn btn-delete" type="submit" name="action" value="bulk_delete" onclick="return confirm('Delete selected budgets?');">Delete Selected</button>
-          <button class="btn btn-neutral" type="button" onclick="exportSelected('budgets-table')">Download Excel</button>
-        </div>
-      </div>
-      <div class="table-wrapper">
-        <table id="budgets-table">
-          <thead>
-            <tr><th><input type="checkbox" onclick="toggleAll(this, 'budgets-table')" aria-label="Select all budgets" /></th><th>ID</th><th>Scope</th><th>Link</th><th>Cost Type</th><th>Revenue</th><th>Freight</th><th>Supplier Cost</th></tr>
-          </thead>
-          <tbody>
-            <?php if ($budgets): ?>
-              <?php foreach ($budgets as $budget): ?>
-                <?php
-                  $scope = $budget['project_id'] ? 'Project' : 'Sub-Batch';
-                  $link = $budget['project_id'] ?: $budget['sub_batch_detail_id'];
-                ?>
-                <tr>
-                  <td><input type="checkbox" name="selected_ids[]" value="<?php echo safe($budget['budget_id']); ?>" /></td>
-                  <td><?php echo safe($budget['budget_id']); ?></td>
-                  <td><?php echo safe($scope); ?></td>
-                  <td><?php echo safe($link); ?></td>
-                  <td><?php echo safe($budget['cost_type']); ?></td>
-                  <td><?php echo safe(($budget['revenue_currency'] ?? '') . ' ' . ($budget['revenue_amount'] ?? '')); ?></td>
-                  <td><?php echo safe(($budget['freight_currency'] ?? '') . ' ' . ($budget['freight_amount'] ?? '')); ?></td>
-                  <td><?php echo safe(($budget['supplier_cost_currency'] ?? '') . ' ' . ($budget['supplier_cost_amount'] ?? '')); ?></td>
-                </tr>
-              <?php endforeach; ?>
-            <?php else: ?>
-              <tr><td colspan="8">No budgets recorded yet.</td></tr>
-            <?php endif; ?>
-          </tbody>
-        </table>
-      </div>
-    </form>
+  <datalist id="budget-id-options">
+    <?php foreach ($budgetIdOptions as $option): ?>
+      <option value="<?php echo safe($option); ?>"></option>
+    <?php endforeach; ?>
+  </datalist>
 
-    <datalist id="budget-id-options">
-      <?php foreach ($budgetIdOptions as $option): ?>
-        <option value="<?php echo safe($option); ?>"></option>
+  <table id="budgets-table" style="display:none;">
+    <thead>
+      <tr><th>ID</th><th>Scope</th><th>Link</th><th>Cost Type</th><th>Revenue</th><th>Freight</th><th>Supplier Cost</th></tr>
+    </thead>
+    <tbody>
+      <?php foreach ($budgets as $budget): ?>
+        <?php
+          $scope = $budget['project_id'] ? 'Project' : 'Sub-batch';
+          $linkId = $budget['project_id'] ?: $budget['sub_batch_detail_id'];
+          $linkLabel = $budget['project_id']
+            ? option_label($projectOptions, (string) $budget['project_id'])
+            : option_label($subBatchOptions, (string) $budget['sub_batch_detail_id']);
+        ?>
+        <tr>
+          <td><?php echo safe($budget['budget_id']); ?></td>
+          <td><?php echo safe($scope); ?></td>
+          <td><?php echo safe($linkLabel ?: $linkId ?: '—'); ?></td>
+          <td><?php echo safe($budget['cost_type']); ?></td>
+          <td><?php echo safe(($budget['revenue_currency'] ?? '') . ' ' . ($budget['revenue_amount'] ?? '')); ?></td>
+          <td><?php echo safe(($budget['freight_currency'] ?? '') . ' ' . ($budget['freight_amount'] ?? '')); ?></td>
+          <td><?php echo safe(($budget['supplier_cost_currency'] ?? '') . ' ' . ($budget['supplier_cost_amount'] ?? '')); ?></td>
+        </tr>
       <?php endforeach; ?>
-    </datalist>
-  </main>
+    </tbody>
+  </table>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const closeButtons = document.querySelectorAll('[data-close-modal]');
+      const openCreateButtons = document.querySelectorAll('[data-open-create]');
+      const createModal = document.getElementById('create-budget-modal');
+
+      const hideModal = (modal) => {
+        if (modal) {
+          modal.classList.remove('is-visible');
+        }
+      };
+
+      const showModal = (modal) => {
+        if (modal) {
+          modal.classList.add('is-visible');
+        }
+      };
+
+      closeButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const modal = button.closest('.message-modal');
+          hideModal(modal);
+        });
+      });
+
+      document.querySelectorAll('.message-modal').forEach((modal) => {
+        modal.addEventListener('click', (event) => {
+          if (event.target === modal && !modal.hasAttribute('data-dismissable')) {
+            hideModal(modal);
+          }
+        });
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          document.querySelectorAll('.message-modal.is-visible').forEach((modal) => hideModal(modal));
+        }
+      });
+
+      openCreateButtons.forEach((button) => button.addEventListener('click', () => showModal(createModal)));
+
+      document.querySelectorAll('[data-open-manage]').forEach((button) => {
+        const target = button.getAttribute('data-open-manage');
+        const modal = document.querySelector(`[data-manage-modal="${target}"]`);
+        if (!modal) return;
+
+        button.addEventListener('click', () => showModal(modal));
+      });
+    });
+  </script>
 </body>
 </html>
