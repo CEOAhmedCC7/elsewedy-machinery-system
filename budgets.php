@@ -144,13 +144,16 @@ function normalize_items_from_request(array $source): array
 $error = '';
 $success = '';
 
+$costTypes = ['Materials', 'Freight', 'Customs', 'Services', 'Other'];
+$currencyOptions = ['EGP', 'USD', 'EUR'];
+
 $submitted = [
     'budget_id' => trim($_POST['budget_id'] ?? ''),
     'scope' => $_POST['budget_scope'] ?? 'project',
     'project_id' => trim($_POST['project_id'] ?? ''),
     'batch_id' => trim($_POST['batch_id'] ?? ''),
     'sub_batch_detail_id' => trim($_POST['sub_batch_detail_id'] ?? ''),
-      'cost_type' => trim($_POST['cost_type'] ?? '') ?: ($costTypes[0] ?? ''),
+    'cost_type' => trim($_POST['cost_type'] ?? '') ?: ($costTypes[0] ?? ''),
     'revenue_amount' => trim($_POST['revenue_amount'] ?? ''),
     'revenue_currency' => trim($_POST['revenue_currency'] ?? 'EGP'),
     'revenue_exchange_rate' => trim($_POST['revenue_exchange_rate'] ?? ''),
@@ -163,8 +166,6 @@ $submitted = [
 ];
 
 $selectedIds = array_filter(array_map('trim', (array) ($_POST['selected_ids'] ?? [])));
-$costTypes = ['Materials', 'Freight', 'Customs', 'Services', 'Other'];
-$currencyOptions = ['EGP', 'USD', 'EUR'];
 $submittedItems = normalize_items_from_request($_POST);
 $deleteItems = array_filter(array_map('trim', (array) ($_POST['delete_items'] ?? [])));
 
@@ -186,17 +187,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($linkProject === '' && $linkBatch === '' && $linkSubBatch === '') {
                 $error = 'Select a project, batch, or sub-batch for this budget.';
             } else {
-                $budgetId = $submitted['budget_id'] !== '' ? $submitted['budget_id'] : 'bud_' . bin2hex(random_bytes(4));
+                $budgetId = null;
 
-                $exists = $pdo->prepare('SELECT 1 FROM budgets WHERE budget_id = :id');
-                $exists->execute([':id' => $budgetId]);
+                if ($submitted['budget_id'] !== '') {
+                    if (!ctype_digit($submitted['budget_id'])) {
+                        $error = 'Budget ID must be a number.';
+                    } else {
+                        $budgetId = $submitted['budget_id'];
+                    }
+                }
 
-                 if ($exists->fetchColumn()) {
-                    $error = 'A budget with this ID already exists.';
-                } else {
-                    $stmt = $pdo->prepare('INSERT INTO budgets (budget_id, project_id, batch_id, sub_batch_detail_id, cost_type, revenue_amount, revenue_currency, revenue_exchange_rate, freight_amount, freight_currency, freight_exchange_rate, supplier_cost_amount, supplier_cost_currency, supplier_cost_exchange_rate) VALUES (:id, :project, :batch, :sub_batch, :cost_type, :rev_amount, :rev_currency, :rev_rate, :freight_amount, :freight_currency, :freight_rate, :supplier_amount, :supplier_currency, :supplier_rate)');
-                    $stmt->execute([
-                        ':id' => $budgetId,
+                if ($error === '' && $budgetId !== null) {
+                    $exists = $pdo->prepare('SELECT 1 FROM budgets WHERE budget_id = :id');
+                    $exists->execute([':id' => $budgetId]);
+
+                    if ($exists->fetchColumn()) {
+                        $error = 'A budget with this ID already exists.';
+                    }
+                }
+
+                if ($error === '') {
+                    $columns = [
+                        'project_id',
+                        'batch_id',
+                        'sub_batch_detail_id',
+                        'cost_type',
+                        'revenue_amount',
+                        'revenue_currency',
+                        'revenue_exchange_rate',
+                        'freight_amount',
+                        'freight_currency',
+                        'freight_exchange_rate',
+                        'supplier_cost_amount',
+                        'supplier_cost_currency',
+                        'supplier_cost_exchange_rate',
+                    ];
+
+                    $placeholders = [
+                        ':project',
+                        ':batch',
+                        ':sub_batch',
+                        ':cost_type',
+                        ':rev_amount',
+                        ':rev_currency',
+                        ':rev_rate',
+                        ':freight_amount',
+                        ':freight_currency',
+                        ':freight_rate',
+                        ':supplier_amount',
+                        ':supplier_currency',
+                        ':supplier_rate',
+                    ];
+
+                    $params = [
                         ':project' => $linkProject !== '' ? $linkProject : null,
                         ':batch' => $linkBatch !== '' ? $linkBatch : null,
                         ':sub_batch' => $linkSubBatch !== '' ? $linkSubBatch : null,
@@ -210,14 +253,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ':supplier_amount' => $submitted['supplier_cost_amount'] !== '' ? $submitted['supplier_cost_amount'] : null,
                         ':supplier_currency' => $submitted['supplier_cost_currency'] ?: null,
                         ':supplier_rate' => $submitted['supplier_cost_exchange_rate'] !== '' ? $submitted['supplier_cost_exchange_rate'] : null,
-                    ]);
+                    ];
+
+                    if ($budgetId !== null) {
+                        array_unshift($columns, 'budget_id');
+                        array_unshift($placeholders, ':id');
+                        $params[':id'] = $budgetId;
+                    }
+
+                    $columnsSql = implode(', ', $columns);
+                    $placeholdersSql = implode(', ', $placeholders);
+
+                    $stmt = $pdo->prepare("INSERT INTO budgets ({$columnsSql}) VALUES ({$placeholdersSql})");
+                    $stmt->execute($params);
+
+                    $budgetId = $budgetId ?? $pdo->lastInsertId('budgets_budget_id_seq');
 
                     if ($submittedItems) {
-                         $itemInsert = $pdo->prepare('INSERT INTO items (budget_id, item_name, description, qty, selling_price, cost_type, revenue_amount, revenue_currency, revenue_exchange_rate, freight_amount, freight_currency, freight_exchange_rate, supplier_cost_amount, supplier_cost_currency, supplier_cost_exchange_rate) VALUES (:budget_id, :item_name, :description, :qty, :selling_price, :cost_type, :rev_amount, :rev_currency, :rev_rate, :freight_amount, :freight_currency, :freight_rate, :supplier_amount, :supplier_currency, :supplier_rate)');
+                        $itemInsert = $pdo->prepare('INSERT INTO items (budget_id, item_name, description, qty, selling_price,cost_type, revenue_amount, revenue_currency, revenue_exchange_rate, freight_amount, freight_currency, freight_exchange_rate, supplier_cost_amount, supplier_cost_currency, supplier_cost_exchange_rate) VALUES (:budget_id, :item_name, :description, :qty, :selling_price, :cost_type, :rev_amount, :rev_currency, :rev_rate, :freight_amount, :freight_currency, :freight_rate, :supplier_amount, :supplier_currency, :supplier_rate)');
 
                         foreach ($submittedItems as $item) {
                             $itemInsert->execute([
-                                 ':budget_id' => $budgetId,
+                                ':budget_id' => $budgetId,
                                 ':item_name' => $item['item_name'] ?: null,
                                 ':description' => $item['description'] ?: null,
                                 ':qty' => $item['qty'] !== '' ? $item['qty'] : null,
@@ -236,14 +293,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     }
 
-                   $success = 'Budget saved successfully.';
-                        $submitted = array_merge($submitted, [
-                            'budget_id' => '',
-                            'project_id' => '',
-                            'batch_id' => '',
-                            'sub_batch_detail_id' => '',
-                            'cost_type' => '',
-                            'revenue_amount' => '',
+                    $success = 'Budget saved successfully.';
+                    $submitted = array_merge($submitted, [
+                        'budget_id' => '',
+                        'project_id' => '',
+                        'batch_id' => '',
+                        'sub_batch_detail_id' => '',
+                        'cost_type' => '',
+                        'revenue_amount' => '',
                         'revenue_exchange_rate' => '',
                         'freight_amount' => '',
                         'freight_exchange_rate' => '',
