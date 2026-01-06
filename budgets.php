@@ -6,11 +6,51 @@ $currentUser = require_login();
 $pdo = get_pdo();
 
 $projects = fetch_table('projects', 'project_id');
+$batches = fetch_table('batches', 'batch_id');
 $subBatchDetails = fetch_table('sub_batch_details', 'sub_batch_detail_id');
 $businessLines = fetch_table('business_lines', 'business_line_id');
 
+$projectLookup = [];
+foreach ($projects as $project) {
+    $projectLookup[$project['project_id']] = $project;
+}
+
+$batchLookup = [];
+foreach ($batches as $batch) {
+    $batchLookup[$batch['batch_id']] = $batch;
+}
+
 $projectOptions = to_options($projects, 'project_id', 'project_name');
-$subBatchOptions = to_options($subBatchDetails, 'sub_batch_detail_id', 'sub_batch_name');
+
+$batchOptions = array_map(
+    static function (array $batch) use ($projectLookup): array {
+        $projectName = $projectLookup[$batch['project_id']]['project_name'] ?? '';
+        $labelParts = array_filter([$projectName, $batch['batch_name'] ?? ''], static fn ($value) => $value !== '');
+        $label = $labelParts ? implode(' • ', $labelParts) : ($batch['batch_name'] ?? (string) $batch['batch_id']);
+
+        return [
+            'value' => $batch['batch_id'],
+            'label' => $label,
+        ];
+    },
+    $batches
+);
+
+$subBatchOptions = array_map(
+    static function (array $detail) use ($batchLookup, $projectLookup): array {
+        $batch = $batchLookup[$detail['batch_id']] ?? [];
+        $projectName = $projectLookup[$batch['project_id'] ?? '']['project_name'] ?? '';
+        $batchName = $batch['batch_name'] ?? '';
+        $labelParts = array_filter([$projectName, $batchName, $detail['sub_batch_name'] ?? ''], static fn ($value) => $value !== '');
+        $label = $labelParts ? implode(' • ', $labelParts) : ($detail['sub_batch_name'] ?? (string) $detail['sub_batch_detail_id']);
+
+        return [
+            'value' => $detail['sub_batch_detail_id'],
+            'label' => $label,
+        ];
+    },
+    $subBatchDetails
+);
 
 function option_label(array $options, string $value): string
 {
@@ -172,7 +212,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $filters = [
-    'project_name' => trim($_GET['filter_project_name'] ?? ''),
+    'project_id' => trim($_GET['filter_project_id'] ?? ''),
+    'batch_id' => trim($_GET['filter_batch_id'] ?? ''),
+    'sub_batch_detail_id' => trim($_GET['filter_sub_batch_detail_id'] ?? ''),
     'business_line_id' => trim($_GET['filter_business_line_id'] ?? ''),
 ];
 
@@ -183,20 +225,29 @@ if ($pdo) {
         $conditions = [];
         $params = [];
 
-        if ($filters['project_name'] !== '') {
-            $conditions[] = 'LOWER(p.project_name) LIKE :filter_name';
-            $params[':filter_name'] = '%' . strtolower($filters['project_name']) . '%';
+        if ($filters['project_id'] !== '') {
+            $conditions[] = '(p.project_id = :filter_project OR bp.project_id = :filter_project)';
+            $params[':filter_project'] = $filters['project_id'];
+        }
+
+        if ($filters['batch_id'] !== '') {
+            $conditions[] = 'bat.batch_id = :filter_batch';
+            $params[':filter_batch'] = $filters['batch_id'];
+        }
+
+        if ($filters['sub_batch_detail_id'] !== '') {
+            $conditions[] = 'sb.sub_batch_detail_id = :filter_sub_batch';
+            $params[':filter_sub_batch'] = $filters['sub_batch_detail_id'];
         }
 
         if ($filters['business_line_id'] !== '') {
-            $conditions[] = 'p.business_line_id = :filter_business';
+            $conditions[] = 'COALESCE(p.business_line_id, bp.business_line_id) = :filter_business';
             $params[':filter_business'] = $filters['business_line_id'];
         }
 
         $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
 
-        $sql = "SELECT b.*, p.project_name, p.business_line_id, bl.business_line_name, sb.sub_batch_name FROM budgets b LEFT JOIN projects p ON p.project_id = b.project_id LEFT JOIN sub_batch_details sb ON sb.sub_batch_detail_id = b.sub_batch_detail_id LEFT JOIN business_lines bl ON bl.business_line_id = p.business_line_id {$whereSql} ORDER BY b.created_at DESC, b.budget_id DESC";
-
+        $sql = "SELECT b.*, p.project_name, p.business_line_id, bl.business_line_name, sb.sub_batch_name, bat.batch_id, bat.batch_name, bp.project_name AS batch_project_name, bp.business_line_id AS batch_business_line_id FROM budgets b LEFT JOIN projects p ON p.project_id = b.project_id LEFT JOIN sub_batch_details sb ON sb.sub_batch_detail_id = b.sub_batch_detail_id LEFT JOIN batches bat ON bat.batch_id = sb.batch_id LEFT JOIN projects bp ON bp.project_id = bat.project_id LEFT JOIN business_lines bl ON bl.business_line_id = COALESCE(p.business_line_id, bp.business_line_id) {$whereSql} ORDER BY b.created_at DESC, b.budget_id DESC";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $budgets = $stmt->fetchAll();
@@ -317,10 +368,44 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
       max-width: 860px;
     }
 
+
     .budget-form-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 12px;
+    }
+
+    .message-table__wrapper {
+      margin-top: 8px;
+      overflow-x: auto;
+    }
+
+    .message-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .message-table th,
+    .message-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .message-table th {
+      width: 40%;
+      text-align: left;
+      background: rgba(0, 0, 0, 0.03);
+      font-weight: 600;
+      color: var(--secondary);
+    }
+
+    .message-table tr:last-child th,
+    .message-table tr:last-child td {
+      border-bottom: none;
     }
   </style>
   <script src="./assets/app.js" defer></script>
@@ -366,8 +451,31 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
       <form method="GET" action="budgets.php" class="filter-form" style="display:grid; gap:10px;">
         <div class="grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px;">
           <div>
-            <label class="label" for="filter_project_name">Filter by project</label>
-            <input type="text" id="filter_project_name" name="filter_project_name" value="<?php echo safe($filters['project_name']); ?>" placeholder="Project name" />
+            <label class="label" for="filter_project_id">Project</label>
+            <select id="filter_project_id" name="filter_project_id">
+              <option value="">-- Any project --</option>
+              <?php foreach ($projectOptions as $option): ?>
+                <option value="<?php echo safe($option['value']); ?>" <?php echo $filters['project_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="filter_batch_id">Batch</label>
+            <select id="filter_batch_id" name="filter_batch_id">
+              <option value="">-- Any batch --</option>
+              <?php foreach ($batchOptions as $option): ?>
+                <option value="<?php echo safe($option['value']); ?>" <?php echo $filters['batch_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="filter_sub_batch_detail_id">Sub-batch</label>
+            <select id="filter_sub_batch_detail_id" name="filter_sub_batch_detail_id">
+              <option value="">-- Any sub-batch --</option>
+              <?php foreach ($subBatchOptions as $option): ?>
+                <option value="<?php echo safe($option['value']); ?>" <?php echo $filters['sub_batch_detail_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+              <?php endforeach; ?>
+            </select>
           </div>
           <div>
             <label class="label" for="filter_business_line_id">Business line</label>
@@ -380,7 +488,7 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
           </div>
         </div>
         <div class="actions" style="justify-content:flex-start; gap:10px; flex-wrap:wrap;">
-          <button class="btn btn-neutral" type="submit">Apply filters</button>
+          <button class="btn btn-update" type="submit">Apply filters</button>
           <a class="btn" href="budgets.php">Clear filters</a>
         </div>
       </form>
@@ -392,17 +500,15 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
           <input type="hidden" name="action" value="bulk_delete" />
           <div class="actions" style="justify-content:flex-start; gap:10px; flex-wrap:wrap;">
             <button class="btn btn-delete" type="submit" onclick="return confirm('Delete selected budgets?');">Delete selected</button>
-            <button class="btn btn-neutral" type="button" onclick="exportSelected('budgets-table')">Download Excel</button>
           </div>
           <div class="budget-grid">
             <?php foreach ($budgets as $budget): ?>
              <?php
                 $scope = $budget['project_id'] ? 'Project' : 'Sub-batch';
-                $linkId = $budget['project_id'] ?: $budget['sub_batch_detail_id'];
-                $linkLabel = $budget['project_id']
-                  ? option_label($projectOptions, (string) $budget['project_id'])
-                  : option_label($subBatchOptions, (string) $budget['sub_batch_detail_id']);
-                $budgetTitle = $budget['project_name'] ?: $linkLabel ?: ($budget['sub_batch_name'] ?? $linkId);
+                $projectName = $budget['project_name'] ?: ($budget['batch_project_name'] ?? '');
+                $batchName = $budget['batch_name'] ?? '';
+                $subBatchName = $budget['sub_batch_name'] ?? '';
+                $budgetTitle = $projectName ?: ($batchName ?: ($subBatchName ?: ($budget['budget_id'] ?? 'Budget')));
                 $createdAt = $budget['created_at'] ?? '';
               ?>
               <div class="module-card module-card--no-image budget-card" tabindex="0">
@@ -411,13 +517,14 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
                   <input type="checkbox" name="selected_ids[]" value="<?php echo safe($budget['budget_id']); ?>" />
                 </label>
                 <div class="module-card__body" style="display:grid; gap:6px; align-content:start;">
-                  <h4><?php echo safe($budgetTitle ?: $budget['budget_id']); ?></h4>
-                  <p><small>Created at: <?php echo safe($createdAt ?: '—'); ?></small></p>
-                  <p><small><?php echo safe($scope); ?>: <?php echo safe($linkLabel ?: $linkId ?: '—'); ?></small></p>
-                  <p><small>Cost type: <?php echo safe($budget['cost_type'] ?: '—'); ?></small></p>
-                  <p><small>Revenue: <?php echo safe(($budget['revenue_currency'] ?? '') . ' ' . ($budget['revenue_amount'] ?? '')); ?></small></p>
-                  <p><small>Freight: <?php echo safe(($budget['freight_currency'] ?? '') . ' ' . ($budget['freight_amount'] ?? '')); ?></small></p>
-                  <p><small>Supplier: <?php echo safe(($budget['supplier_cost_currency'] ?? '') . ' ' . ($budget['supplier_cost_amount'] ?? '')); ?></small></p>
+                  <h4 style="margin:0; font-weight:700;"><?php echo safe($budgetTitle); ?></h4>
+                  <?php if ($batchName !== ''): ?>
+                    <p class="budget-meta"><small>Batch: <?php echo safe($batchName); ?></small></p>
+                  <?php endif; ?>
+                  <?php if ($subBatchName !== ''): ?>
+                    <p class="budget-meta"><small>Sub-batch: <?php echo safe($subBatchName); ?></small></p>
+                  <?php endif; ?>
+                  <p class="budget-meta"><small>Created at: <?php echo safe($createdAt ?: '—'); ?></small></p>
                 </div>
                 <div class="budget-card__footer">
                   <button class="btn btn-update" type="button" data-open-manage="<?php echo safe($budget['budget_id']); ?>">Manage</button>
@@ -535,49 +642,79 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
           </div>
         </div>
 
-        <div class="message-modal budget-modal" data-details-modal="<?php echo safe($budget['budget_id']); ?>" role="dialog" aria-modal="true" aria-label="Budget details for <?php echo safe($budget['budget_id']); ?>">
+         <div class="message-modal budget-modal" data-details-modal="<?php echo safe($budget['budget_id']); ?>" role="dialog" aria-modal="true" aria-label="Budget details for <?php echo safe($budget['budget_id']); ?>">
           <div class="message-dialog">
             <div class="message-dialog__header">
               <span class="message-title">Budget details</span>
               <button class="message-close" type="button" aria-label="Close budget details" data-close-modal>&times;</button>
             </div>
-            <div class="details-grid">
-              <div class="details-grid__item">
-                <h5>Project</h5>
-                <p><?php echo safe($budget['project_name'] ?: $budget['project_id'] ?: '—'); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Scope</h5>
-                <p><?php echo safe($budget['project_id'] ? 'Project' : 'Sub-batch'); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Sub-batch</h5>
-                <p><?php echo safe($budget['sub_batch_name'] ?? $budget['sub_batch_detail_id'] ?? '—'); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Business line</h5>
-                <p><?php echo safe($budget['business_line_name'] ?? '—'); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Cost type</h5>
-                <p><?php echo safe($budget['cost_type'] ?: '—'); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Revenue</h5>
-                <p><?php echo safe(($budget['revenue_currency'] ?? '') . ' ' . ($budget['revenue_amount'] ?? '')); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Freight</h5>
-                <p><?php echo safe(($budget['freight_currency'] ?? '') . ' ' . ($budget['freight_amount'] ?? '')); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Supplier</h5>
-                <p><?php echo safe(($budget['supplier_cost_currency'] ?? '') . ' ' . ($budget['supplier_cost_amount'] ?? '')); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Created at</h5>
-                <p><?php echo safe($budget['created_at'] ?? '—'); ?></p>
-              </div>
+            <?php
+              $scope = $budget['project_id'] ? 'Project' : 'Sub-batch';
+              $projectName = $budget['project_name'] ?: ($budget['batch_project_name'] ?? '');
+              $batchName = $budget['batch_name'] ?? '';
+              $subBatchName = $budget['sub_batch_name'] ?? '';
+            ?>
+            <div class="message-table__wrapper">
+              <table class="message-table details-table">
+                <tbody>
+                  <tr>
+                    <th scope="row">Budget ID</th>
+                    <td><?php echo safe($budget['budget_id']); ?></td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Project</th>
+                    <td><?php echo safe($projectName ?: '—'); ?></td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Batch</th>
+                    <td><?php echo safe($batchName ?: '—'); ?></td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Sub-batch</th>
+                    <td><?php echo safe($subBatchName ?: '—'); ?></td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Scope</th>
+                    <td><?php echo safe($scope); ?></td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Business line</th>
+                    <td><?php echo safe($budget['business_line_name'] ?? '—'); ?></td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Cost type</th>
+                    <td><?php echo safe($budget['cost_type'] ?: '—'); ?></td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Revenue</th>
+                    <td><?php echo safe(($budget['revenue_currency'] ?? '') . ' ' . ($budget['revenue_amount'] ?? '')); ?></td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Freight</th>
+                    <td><?php echo safe(($budget['freight_currency'] ?? '') . ' ' . ($budget['freight_amount'] ?? '')); ?></td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Supplier</th>
+                    <td><?php echo safe(($budget['supplier_cost_currency'] ?? '') . ' ' . ($budget['supplier_cost_amount'] ?? '')); ?></td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Revenue exchange rate</th>
+                    <td><?php echo safe($budget['revenue_exchange_rate'] ?? '—'); ?></td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Freight exchange rate</th>
+                    <td><?php echo safe($budget['freight_exchange_rate'] ?? '—'); ?></td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Supplier exchange rate</th>
+                    <td><?php echo safe($budget['supplier_cost_exchange_rate'] ?? '—'); ?></td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Created at</th>
+                    <td><?php echo safe($budget['created_at'] ?? '—'); ?></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
