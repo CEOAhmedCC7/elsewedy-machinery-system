@@ -15,6 +15,7 @@ const ALLOWED_TABLES = [
     'collection_targets',
     'customers',
     'hot_deals',
+    'items',
     'invoices',
     'leads_tracking',
     'lost_deals',
