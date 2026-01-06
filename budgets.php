@@ -85,13 +85,14 @@ function normalize_items_from_request(array $source): array
     $freightRates = (array) ($source['item_freight_exchange_rate'] ?? []);
     $supplierAmounts = (array) ($source['item_supplier_cost_amount'] ?? []);
     $supplierCurrencies = (array) ($source['item_supplier_cost_currency'] ?? []);
-    $supplierRates = (array) ($source['item_supplier_cost_exchange_rate'] ?? []);
+     $supplierRates = (array) ($source['item_supplier_cost_exchange_rate'] ?? []);
 
 
     $items = [];
     foreach ($descriptions as $index => $description) {
         $cleanDescription = trim((string) $description);
         $itemName = trim((string) ($names[$index] ?? ''));
+        $quantity = trim((string) ($quantities[$index] ?? ''));
         $sellingPrice = trim((string) ($sellingPrices[$index] ?? ''));
         $itemId = trim((string) ($ids[$index] ?? ''));
         $costType = trim((string) ($costTypes[$index] ?? ''));
@@ -288,10 +289,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $deleteStmt->execute(array_merge([$submitted['budget_id']], $deleteItems));
                     }
 
-                    if ($items) {
+                    if ($submittedItems) {
                         $updateStmt = $pdo->prepare('UPDATE items SET item_name = :item_name, description = :description, qty = :qty, selling_price = :selling_price, cost_type = :cost_type, revenue_amount = :rev_amount, revenue_currency = :rev_currency, revenue_exchange_rate = :rev_rate, freight_amount = :freight_amount, freight_currency = :freight_currency, freight_exchange_rate = :freight_rate, supplier_cost_amount = :supplier_amount, supplier_cost_currency = :supplier_currency, supplier_cost_exchange_rate = :supplier_rate WHERE item_id = :id AND budget_id = :budget_id');
                         $insertStmt = $pdo->prepare('INSERT INTO items (budget_id, item_name, description, qty, selling_price, cost_type, revenue_amount, revenue_currency, revenue_exchange_rate, freight_amount, freight_currency, freight_exchange_rate, supplier_cost_amount, supplier_cost_currency, supplier_cost_exchange_rate) VALUES (:budget_id, :item_name, :description, :qty, :selling_price, :cost_type, :rev_amount, :rev_currency, :rev_rate, :freight_amount, :freight_currency, :freight_rate, :supplier_amount, :supplier_currency, :supplier_rate)');
-                        foreach ($items as $item) {
+                        foreach ($submittedItems as $item) {
                             if ($item['item_id'] !== '') {
                                 if (in_array($item['item_id'], $deleteItems, true)) {
                                     continue;
@@ -420,7 +421,8 @@ if ($pdo) {
 
         $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
 
-        $sql = "SELECT b.*, p.project_name, p.business_line_id, bl.business_line_name, sb.sub_batch_name, bat.batch_id, bat.batch_name, bp.project_name AS batch_project_name, bp.business_line_id AS batch_business_line_id, COALESCE(items.item_count, 0) AS item_count FROM budgets b LEFT JOIN projects p ON p.project_id = b.project_id LEFT JOIN sub_batch_details sb ON sb.sub_batch_detail_id = b.sub_batch_detail_id LEFT JOIN batches bat ON bat.batch_id = COALESCE(b.batch_id, sb.batch_id) LEFT JOIN projects bp ON bp.project_id = bat.project_id LEFT JOIN business_lines bl ON bl.business_line_id = COALESCE(p.business_line_id, bp.business_line_id) LEFT JOIN (SELECT budget_id, COUNT(*) AS item_count FROM items GROUP BY budget_id) items ON items.budget_id = b.budget_id {$whereSql} ORDER BY b.created_at DESC, b.budget_id DESC";
+       $sql = "SELECT b.*, p.project_name, p.business_line_id, bl.business_line_name, sb.sub_batch_name, bat.batch_id, bat.batch_name, bp.project_name AS batch_project_name, bp.business_line_id AS batch_business_line_id, COALESCE(items.item_count, 0) AS item_count FROM budgets b LEFT JOIN projects p ON p.project_id = b.project_id LEFT JOIN sub_batch_details sb ON sb.sub_batch_detail_id = b.sub_batch_detail_id LEFT JOIN batches bat ON bat.batch_id = COALESCE(b.batch_id, sb.batch_id) LEFT JOIN projects bp ON bp.project_id = bat.project_id LEFT JOIN business_lines bl ON bl.business_line_id = COALESCE(p.business_line_id, bp.business_line_id) LEFT JOIN (SELECT budget_id, COUNT(*) AS item_count FROM items GROUP BY budget_id) items ON items.budget_id = b.budget_id {$whereSql} ORDER BY b.created_at DESC, b.budget_id DESC";
+        $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $budgets = $stmt->fetchAll();
     } catch (Throwable $e) {
