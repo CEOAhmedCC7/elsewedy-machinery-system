@@ -545,7 +545,7 @@ $subBatchDataForJs = array_map(
 
     .message-dialog.is-wide {
       width: min(95vw, 1200px);
-      max-width: 1200px;
+      max-width: 1900px;
     }
 
     .budget-status {
@@ -586,8 +586,18 @@ $subBatchDataForJs = array_map(
       outline-offset: 2px;
     }
 
-    .budget-modal .message-dialog {
-      max-width: 860px;
+     .budget-modal .message-dialog {
+      width: 90vw;
+      max-width: 90vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .budget-modal form {
+      overflow-y: auto;
+      max-height: calc(90vh - 80px);
+      padding-right: 4px;
     }
 
 
