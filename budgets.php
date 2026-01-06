@@ -20,6 +20,12 @@ foreach ($batches as $batch) {
     $batchLookup[$batch['batch_id']] = $batch;
 }
 
+$subBatchLookup = [];
+foreach ($subBatchDetails as $detail) {
+    $subBatchLookup[$detail['sub_batch_detail_id']] = $detail;
+}
+
+
 $projectOptions = to_options($projects, 'project_id', 'project_name');
 
 $batchOptions = array_map(
@@ -66,7 +72,9 @@ function option_label(array $options, string $value): string
 function normalize_items_from_request(array $source): array
 {
     $ids = (array) ($source['item_id'] ?? []);
+    $names = (array) ($source['item_name'] ?? []);
     $descriptions = (array) ($source['item_description'] ?? []);
+    $sellingPrices = (array) ($source['item_selling_price'] ?? []);
     $costTypes = (array) ($source['item_cost_type'] ?? []);
     $revenueAmounts = (array) ($source['item_revenue_amount'] ?? []);
     $revenueCurrencies = (array) ($source['item_revenue_currency'] ?? []);
@@ -79,9 +87,10 @@ function normalize_items_from_request(array $source): array
     $supplierRates = (array) ($source['item_supplier_cost_exchange_rate'] ?? []);
 
     $items = [];
-
     foreach ($descriptions as $index => $description) {
         $cleanDescription = trim((string) $description);
+        $itemName = trim((string) ($names[$index] ?? ''));
+        $sellingPrice = trim((string) ($sellingPrices[$index] ?? ''));
         $itemId = trim((string) ($ids[$index] ?? ''));
         $costType = trim((string) ($costTypes[$index] ?? ''));
         $revenueAmount = trim((string) ($revenueAmounts[$index] ?? ''));
@@ -94,7 +103,9 @@ function normalize_items_from_request(array $source): array
         $supplierCurrency = trim((string) ($supplierCurrencies[$index] ?? ''));
         $supplierRate = trim((string) ($supplierRates[$index] ?? ''));
 
-        $hasValues = $cleanDescription !== ''
+       $hasValues = $cleanDescription !== ''
+            || $itemName !== ''
+            || $sellingPrice !== ''
             || $costType !== ''
             || $revenueAmount !== ''
             || $freightAmount !== ''
@@ -106,7 +117,9 @@ function normalize_items_from_request(array $source): array
 
         $items[] = [
             'item_id' => $itemId,
+            'item_name' => $itemName,
             'description' => $cleanDescription,
+            'selling_price' => $sellingPrice,
             'cost_type' => $costType,
             'revenue_amount' => $revenueAmount,
             'revenue_currency' => $revenueCurrency ?: 'EGP',
@@ -130,6 +143,7 @@ $submitted = [
     'budget_id' => trim($_POST['budget_id'] ?? ''),
     'scope' => $_POST['budget_scope'] ?? 'project',
     'project_id' => trim($_POST['project_id'] ?? ''),
+    'batch_id' => trim($_POST['batch_id'] ?? ''),
     'sub_batch_detail_id' => trim($_POST['sub_batch_detail_id'] ?? ''),
     'cost_type' => trim($_POST['cost_type'] ?? ''),
     'revenue_amount' => trim($_POST['revenue_amount'] ?? ''),
@@ -153,27 +167,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     $linkProject = $submitted['scope'] === 'project' ? $submitted['project_id'] : '';
+    $linkBatch = $submitted['scope'] === 'batch' ? $submitted['batch_id'] : '';
     $linkSubBatch = $submitted['scope'] === 'sub-batch' ? $submitted['sub_batch_detail_id'] : '';
+
+    if ($linkSubBatch !== '' && $linkBatch === '') {
+        $linkBatch = (string) ($subBatchLookup[$linkSubBatch]['batch_id'] ?? '');
+    }
 
     try {
         if ($action === 'create') {
             if ($submitted['cost_type'] === '') {
                 $error = 'Cost type is required.';
-            } elseif ($linkProject === '' && $linkSubBatch === '') {
-                $error = 'Select either a project or sub-batch.';
+            } elseif ($linkProject === '' && $linkBatch === '' && $linkSubBatch === '') {
+                $error = 'Select a project, batch, or sub-batch for this budget.';
             } else {
                 $budgetId = $submitted['budget_id'] !== '' ? $submitted['budget_id'] : 'bud_' . bin2hex(random_bytes(4));
 
                 $exists = $pdo->prepare('SELECT 1 FROM budgets WHERE budget_id = :id');
                 $exists->execute([':id' => $budgetId]);
 
-                if ($exists->fetchColumn()) {
+                 if ($exists->fetchColumn()) {
                     $error = 'A budget with this ID already exists.';
                 } else {
-                    $stmt = $pdo->prepare('INSERT INTO budgets (budget_id, project_id, sub_batch_detail_id, cost_type, revenue_amount, revenue_currency, revenue_exchange_rate, freight_amount, freight_currency, freight_exchange_rate, supplier_cost_amount, supplier_cost_currency, supplier_cost_exchange_rate) VALUES (:id, :project, :sub_batch, :cost_type, :rev_amount, :rev_currency, :rev_rate, :freight_amount, :freight_currency, :freight_rate, :supplier_amount, :supplier_currency, :supplier_rate)');
+                    $stmt = $pdo->prepare('INSERT INTO budgets (budget_id, project_id, batch_id, sub_batch_detail_id, cost_type, revenue_amount, revenue_currency, revenue_exchange_rate, freight_amount, freight_currency, freight_exchange_rate, supplier_cost_amount, supplier_cost_currency, supplier_cost_exchange_rate) VALUES (:id, :project, :batch, :sub_batch, :cost_type, :rev_amount, :rev_currency, :rev_rate, :freight_amount, :freight_currency, :freight_rate, :supplier_amount, :supplier_currency, :supplier_rate)');
                     $stmt->execute([
                         ':id' => $budgetId,
                         ':project' => $linkProject !== '' ? $linkProject : null,
+                        ':batch' => $linkBatch !== '' ? $linkBatch : null,
                         ':sub_batch' => $linkSubBatch !== '' ? $linkSubBatch : null,
                         ':cost_type' => $submitted['cost_type'],
                         ':rev_amount' => $submitted['revenue_amount'] !== '' ? $submitted['revenue_amount'] : null,
@@ -188,12 +208,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ]);
 
                     if ($submittedItems) {
-                        $itemInsert = $pdo->prepare('INSERT INTO items (budget_id, description, cost_type, revenue_amount, revenue_currency, revenue_exchange_rate, freight_amount, freight_currency, freight_exchange_rate, supplier_cost_amount, supplier_cost_currency, supplier_cost_exchange_rate) VALUES (:budget_id, :description, :cost_type, :rev_amount, :rev_currency, :rev_rate, :freight_amount, :freight_currency, :freight_rate, :supplier_amount, :supplier_currency, :supplier_rate)');
+                        $itemInsert = $pdo->prepare('INSERT INTO items (budget_id, item_name, description, selling_price, cost_type, revenue_amount, revenue_currency, revenue_exchange_rate, freight_amount, freight_currency, freight_exchange_rate, supplier_cost_amount, supplier_cost_currency, supplier_cost_exchange_rate) VALUES (:budget_id, :item_name, :description, :selling_price, :cost_type, :rev_amount, :rev_currency, :rev_rate, :freight_amount, :freight_currency, :freight_rate, :supplier_amount, :supplier_currency, :supplier_rate)');
 
                         foreach ($submittedItems as $item) {
                             $itemInsert->execute([
                                 ':budget_id' => $budgetId,
+                                ':item_name' => $item['item_name'] ?: null,
                                 ':description' => $item['description'] ?: null,
+                                ':selling_price' => $item['selling_price'] !== '' ? $item['selling_price'] : null,
                                 ':cost_type' => $item['cost_type'] ?: null,
                                 ':rev_amount' => $item['revenue_amount'] !== '' ? $item['revenue_amount'] : null,
                                 ':rev_currency' => $item['revenue_currency'] ?: null,
@@ -208,13 +230,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     }
 
-                    $success = 'Budget saved successfully.';
-                    $submitted = array_merge($submitted, [
-                        'budget_id' => '',
-                        'project_id' => '',
-                        'sub_batch_detail_id' => '',
-                        'cost_type' => '',
-                        'revenue_amount' => '',
+                   $success = 'Budget saved successfully.';
+                        $submitted = array_merge($submitted, [
+                            'budget_id' => '',
+                            'project_id' => '',
+                            'batch_id' => '',
+                            'sub_batch_detail_id' => '',
+                            'cost_type' => '',
+                            'revenue_amount' => '',
                         'revenue_exchange_rate' => '',
                         'freight_amount' => '',
                         'freight_exchange_rate' => '',
@@ -229,13 +252,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Enter the Budget ID to update.';
             } elseif ($submitted['cost_type'] === '') {
                 $error = 'Cost type is required.';
-            } elseif ($linkProject === '' && $linkSubBatch === '') {
-                $error = 'Select either a project or sub-batch.';
+            } elseif ($linkProject === '' && $linkBatch === '' && $linkSubBatch === '') {
+                $error = 'Select a project, batch, or sub-batch for this budget.';
             } else {
-                $stmt = $pdo->prepare('UPDATE budgets SET project_id = :project, sub_batch_detail_id = :sub_batch, cost_type = :cost_type, revenue_amount = :rev_amount, revenue_currency = :rev_currency, revenue_exchange_rate = :rev_rate, freight_amount = :freight_amount, freight_currency = :freight_currency, freight_exchange_rate = :freight_rate, supplier_cost_amount = :supplier_amount, supplier_cost_currency = :supplier_currency, supplier_cost_exchange_rate = :supplier_rate WHERE budget_id = :id');
+                $stmt = $pdo->prepare('UPDATE budgets SET project_id = :project, batch_id = :batch, sub_batch_detail_id = :sub_batch, cost_type = :cost_type, revenue_amount = :rev_amount, revenue_currency = :rev_currency, revenue_exchange_rate = :rev_rate, freight_amount = :freight_amount, freight_currency = :freight_currency, freight_exchange_rate = :freight_rate, supplier_cost_amount = :supplier_amount, supplier_cost_currency = :supplier_currency, supplier_cost_exchange_rate = :supplier_rate WHERE budget_id = :id');
                 $stmt->execute([
                     ':id' => $submitted['budget_id'],
                     ':project' => $linkProject !== '' ? $linkProject : null,
+                    ':batch' => $linkBatch !== '' ? $linkBatch : null,
                     ':sub_batch' => $linkSubBatch !== '' ? $linkSubBatch : null,
                     ':cost_type' => $submitted['cost_type'],
                     ':rev_amount' => $submitted['revenue_amount'] !== '' ? $submitted['revenue_amount'] : null,
@@ -249,6 +273,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':supplier_rate' => $submitted['supplier_cost_exchange_rate'] !== '' ? $submitted['supplier_cost_exchange_rate'] : null,
                 ]);
 
+
                 if ($stmt->rowCount() === 0) {
                     $error = 'Budget not found.';
                 } else {
@@ -258,11 +283,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $deleteStmt->execute(array_merge([$submitted['budget_id']], $deleteItems));
                     }
 
-                    $items = normalize_items_from_request($_POST);
-
                     if ($items) {
-                        $updateStmt = $pdo->prepare('UPDATE items SET description = :description, cost_type = :cost_type, revenue_amount = :rev_amount, revenue_currency = :rev_currency, revenue_exchange_rate = :rev_rate, freight_amount = :freight_amount, freight_currency = :freight_currency, freight_exchange_rate = :freight_rate, supplier_cost_amount = :supplier_amount, supplier_cost_currency = :supplier_currency, supplier_cost_exchange_rate = :supplier_rate WHERE item_id = :id AND budget_id = :budget_id');
-                        $insertStmt = $pdo->prepare('INSERT INTO items (budget_id, description, cost_type, revenue_amount, revenue_currency, revenue_exchange_rate, freight_amount, freight_currency, freight_exchange_rate, supplier_cost_amount, supplier_cost_currency, supplier_cost_exchange_rate) VALUES (:budget_id, :description, :cost_type, :rev_amount, :rev_currency, :rev_rate, :freight_amount, :freight_currency, :freight_rate, :supplier_amount, :supplier_currency, :supplier_rate)');
+                        $updateStmt = $pdo->prepare('UPDATE items SET item_name = :item_name, description = :description, selling_price = :selling_price, cost_type = :cost_type, revenue_amount = :rev_amount, revenue_currency = :rev_currency, revenue_exchange_rate = :rev_rate, freight_amount = :freight_amount, freight_currency = :freight_currency, freight_exchange_rate = :freight_rate, supplier_cost_amount = :supplier_amount, supplier_cost_currency = :supplier_currency, supplier_cost_exchange_rate = :supplier_rate WHERE item_id = :id AND budget_id = :budget_id');
+                        $insertStmt = $pdo->prepare('INSERT INTO items (budget_id, item_name, description, selling_price, cost_type, revenue_amount, revenue_currency, revenue_exchange_rate, freight_amount, freight_currency, freight_exchange_rate, supplier_cost_amount, supplier_cost_currency, supplier_cost_exchange_rate) VALUES (:budget_id, :item_name, :description, :selling_price, :cost_type, :rev_amount, :rev_currency, :rev_rate, :freight_amount, :freight_currency, :freight_rate, :supplier_amount, :supplier_currency, :supplier_rate)');
 
                         foreach ($items as $item) {
                             if ($item['item_id'] !== '') {
@@ -273,7 +296,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $updateStmt->execute([
                                     ':id' => $item['item_id'],
                                     ':budget_id' => $submitted['budget_id'],
+                                    ':item_name' => $item['item_name'] ?: null,
                                     ':description' => $item['description'] ?: null,
+                                    ':selling_price' => $item['selling_price'] !== '' ? $item['selling_price'] : null,
                                     ':cost_type' => $item['cost_type'] ?: null,
                                     ':rev_amount' => $item['revenue_amount'] !== '' ? $item['revenue_amount'] : null,
                                     ':rev_currency' => $item['revenue_currency'] ?: null,
@@ -285,10 +310,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     ':supplier_currency' => $item['supplier_cost_currency'] ?: null,
                                     ':supplier_rate' => $item['supplier_cost_exchange_rate'] !== '' ? $item['supplier_cost_exchange_rate'] : null,
                                 ]);
+
                             } else {
                                 $insertStmt->execute([
                                     ':budget_id' => $submitted['budget_id'],
+                                    ':item_name' => $item['item_name'] ?: null,
                                     ':description' => $item['description'] ?: null,
+                                    ':selling_price' => $item['selling_price'] !== '' ? $item['selling_price'] : null,
                                     ':cost_type' => $item['cost_type'] ?: null,
                                     ':rev_amount' => $item['revenue_amount'] !== '' ? $item['revenue_amount'] : null,
                                     ':rev_currency' => $item['revenue_currency'] ?: null,
@@ -317,10 +345,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($stmt->rowCount() === 0) {
                     $error = 'Budget not found or already deleted.';
                 } else {
-                    $success = 'Budget deleted successfully.';
+                   $success = 'Budget deleted successfully.';
                     $submitted = array_merge($submitted, [
                         'budget_id' => '',
                         'project_id' => '',
+                        'batch_id' => '',
                         'sub_batch_detail_id' => '',
                         'cost_type' => '',
                         'revenue_amount' => '',
@@ -384,8 +413,7 @@ if ($pdo) {
 
         $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
 
-        $sql = "SELECT b.*, p.project_name, p.business_line_id, bl.business_line_name, sb.sub_batch_name, bat.batch_id, bat.batch_name, bp.project_name AS batch_project_name, bp.business_line_id AS batch_business_line_id, COALESCE(items.item_count, 0) AS item_count FROM budgets b LEFT JOIN projects p ON p.project_id = b.project_id LEFT JOIN sub_batch_details sb ON sb.sub_batch_detail_id = b.sub_batch_detail_id LEFT JOIN batches bat ON bat.batch_id = sb.batch_id LEFT JOIN projects bp ON bp.project_id = bat.project_id LEFT JOIN business_lines bl ON bl.business_line_id = COALESCE(p.business_line_id, bp.business_line_id) LEFT JOIN (SELECT budget_id, COUNT(*) AS item_count FROM items GROUP BY budget_id) items ON items.budget_id = b.budget_id {$whereSql} ORDER BY b.created_at DESC, b.budget_id DESC";
-        $stmt = $pdo->prepare($sql);
+        $sql = "SELECT b.*, p.project_name, p.business_line_id, bl.business_line_name, sb.sub_batch_name, bat.batch_id, bat.batch_name, bp.project_name AS batch_project_name, bp.business_line_id AS batch_business_line_id, COALESCE(items.item_count, 0) AS item_count FROM budgets b LEFT JOIN projects p ON p.project_id = b.project_id LEFT JOIN sub_batch_details sb ON sb.sub_batch_detail_id = b.sub_batch_detail_id LEFT JOIN batches bat ON bat.batch_id = COALESCE(b.batch_id, sb.batch_id) LEFT JOIN projects bp ON bp.project_id = bat.project_id LEFT JOIN business_lines bl ON bl.business_line_id = COALESCE(p.business_line_id, bp.business_line_id) LEFT JOIN (SELECT budget_id, COUNT(*) AS item_count FROM items GROUP BY budget_id) items ON items.budget_id = b.budget_id {$whereSql} ORDER BY b.created_at DESC, b.budget_id DESC";
         $stmt->execute($params);
         $budgets = $stmt->fetchAll();
     } catch (Throwable $e) {
@@ -412,6 +440,34 @@ if ($pdo) {
 
 $budgetIdOptions = array_column($budgets, 'budget_id');
 $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_line_name');
+
+$batchDataForJs = array_map(
+    static function (array $batch) use ($projectLookup): array {
+        return [
+            'batch_id' => (string) ($batch['batch_id'] ?? ''),
+            'batch_name' => $batch['batch_name'] ?? '',
+            'project_id' => (string) ($batch['project_id'] ?? ''),
+            'project_name' => $projectLookup[$batch['project_id']]['project_name'] ?? '',
+        ];
+    },
+    $batches
+);
+
+$subBatchDataForJs = array_map(
+    static function (array $detail) use ($batchLookup, $projectLookup): array {
+        $batch = $batchLookup[$detail['batch_id']] ?? [];
+
+        return [
+            'sub_batch_detail_id' => (string) ($detail['sub_batch_detail_id'] ?? ''),
+            'sub_batch_name' => $detail['sub_batch_name'] ?? '',
+            'batch_id' => (string) ($detail['batch_id'] ?? ''),
+            'batch_name' => $batch['batch_name'] ?? '',
+            'project_id' => (string) ($batch['project_id'] ?? ''),
+            'project_name' => $projectLookup[$batch['project_id']]['project_name'] ?? '',
+        ];
+    },
+    $subBatchDetails
+);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -703,12 +759,13 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
           </div>
           <div class="budget-grid">
             <?php foreach ($budgets as $budget): ?>
+
              <?php
-                $scope = $budget['project_id'] ? 'Project' : 'Sub-batch';
+               $scope = $budget['sub_batch_detail_id'] ? 'Sub-batch' : ($budget['batch_id'] ? 'Batch' : 'Project');
                 $projectName = $budget['project_name'] ?: ($budget['batch_project_name'] ?? '');
                 $batchName = $budget['batch_name'] ?? '';
                 $subBatchName = $budget['sub_batch_name'] ?? '';
-                $budgetTitle = $projectName ?: ($batchName ?: ($subBatchName ?: ($budget['budget_id'] ?? 'Budget')));
+                $budgetTitle = $subBatchName ?: ($batchName ?: ($projectName ?: ($budget['budget_id'] ?? 'Budget')));
                 $createdAt = $budget['created_at'] ?? '';
               ?>
               <div class="module-card module-card--no-image budget-card" tabindex="0">
@@ -718,6 +775,9 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
                 </label>
                 <div class="module-card__body" style="display:grid; gap:6px; align-content:start;">
                   <h4 style="margin:0; font-weight:700;"><?php echo safe($budgetTitle); ?></h4>
+                  <?php if ($projectName !== ''): ?>
+                    <p class="budget-meta"><small>Project: <?php echo safe($projectName); ?></small></p>
+                  <?php endif; ?>
                   <?php if ($batchName !== ''): ?>
                     <p class="budget-meta"><small>Batch: <?php echo safe($batchName); ?></small></p>
                   <?php endif; ?>
@@ -748,16 +808,17 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
               <input type="hidden" name="action" value="update" />
               <input type="hidden" name="budget_id" value="<?php echo safe($budget['budget_id']); ?>" />
               <div class="budget-form-grid">
-                <div>
+                 <div>
                   <label class="label">Scope</label>
                   <div style="display:flex; gap:10px; align-items:center;">
                     <label><input type="radio" name="budget_scope" value="project" <?php echo $budget['project_id'] ? 'checked' : ''; ?> /> Project</label>
+                    <label><input type="radio" name="budget_scope" value="batch" <?php echo $budget['batch_id'] && !$budget['sub_batch_detail_id'] ? 'checked' : ''; ?> /> Batch</label>
                     <label><input type="radio" name="budget_scope" value="sub-batch" <?php echo $budget['sub_batch_detail_id'] ? 'checked' : ''; ?> /> Sub-Batch Detail</label>
                   </div>
                 </div>
                 <div>
                   <label class="label" for="project-<?php echo safe($budget['budget_id']); ?>">Project</label>
-                  <select id="project-<?php echo safe($budget['budget_id']); ?>" name="project_id">
+                  <select id="project-<?php echo safe($budget['budget_id']); ?>" name="project_id" data-project-select data-selected-value="<?php echo safe($budget['project_id']); ?>">
                     <option value="">-- Select Project --</option>
                     <?php foreach ($projectOptions as $option): ?>
                       <option value="<?php echo safe($option['value']); ?>" <?php echo $budget['project_id'] == $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['value'] . ' | ' . $option['label']); ?></option>
@@ -765,8 +826,17 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
                   </select>
                 </div>
                 <div>
+                  <label class="label" for="batch-<?php echo safe($budget['budget_id']); ?>">Batch</label>
+                  <select id="batch-<?php echo safe($budget['budget_id']); ?>" name="batch_id" data-batch-select data-selected-value="<?php echo safe($budget['batch_id']); ?>">
+                    <option value="">-- Select Batch --</option>
+                    <?php foreach ($batchOptions as $option): ?>
+                      <option value="<?php echo safe($option['value']); ?>" <?php echo $budget['batch_id'] == $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['value'] . ' | ' . $option['label']); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div>
                   <label class="label" for="sub-batch-<?php echo safe($budget['budget_id']); ?>">Sub-Batch Detail</label>
-                  <select id="sub-batch-<?php echo safe($budget['budget_id']); ?>" name="sub_batch_detail_id">
+                  <select id="sub-batch-<?php echo safe($budget['budget_id']); ?>" name="sub_batch_detail_id" data-sub-batch-select data-selected-value="<?php echo safe($budget['sub_batch_detail_id']); ?>">
                     <option value="">-- Select Sub-Batch --</option>
                     <?php foreach ($subBatchOptions as $option): ?>
                       <option value="<?php echo safe($option['value']); ?>" <?php echo $budget['sub_batch_detail_id'] == $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['value'] . ' | ' . $option['label']); ?></option>
@@ -845,7 +915,8 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
                     <thead>
                       <tr>
                         <th style="width:36px;">Select</th>
-                        <th>Description</th>
+                        <th>Item</th>
+                        <th>Selling price</th>
                         <th>Cost type</th>
                         <th>Revenue</th>
                         <th>Freight</th>
@@ -858,7 +929,11 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
                           <td><input type="checkbox" class="item-select" /></td>
                           <td>
                             <input type="hidden" name="item_id[]" value="" />
+                            <input type="text" name="item_name[]" placeholder="Item name" />
                             <input type="text" name="item_description[]" placeholder="Item description" />
+                          </td>
+                          <td>
+                            <input type="number" step="0.01" name="item_selling_price[]" placeholder="Selling price" />
                           </td>
                           <td>
                             <select name="item_cost_type[]">
@@ -903,13 +978,17 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
                               <input type="checkbox" class="item-select" value="<?php echo safe($item['item_id']); ?>" />
                               <input type="hidden" name="item_id[]" value="<?php echo safe($item['item_id']); ?>" />
                             </td>
-                            <td>
-                              <input type="text" name="item_description[]" value="<?php echo safe($item['description'] ?? ''); ?>" placeholder="Item description" />
-                            </td>
-                            <td>
-                              <select name="item_cost_type[]">
-                                <option value="">-- Cost type --</option>
-                                <?php foreach ($costTypes as $type): ?>
+                           <td>
+                            <input type="text" name="item_name[]" value="<?php echo safe($item['item_name'] ?? ''); ?>" placeholder="Item name" />
+                            <input type="text" name="item_description[]" value="<?php echo safe($item['description'] ?? ''); ?>" placeholder="Item description" />
+                          </td>
+                          <td>
+                            <input type="number" step="0.01" name="item_selling_price[]" value="<?php echo safe($item['selling_price'] ?? ''); ?>" placeholder="Selling price" />
+                          </td>
+                          <td>
+                            <select name="item_cost_type[]">
+                              <option value="">-- Cost type --</option>
+                              <?php foreach ($costTypes as $type): ?>
                                   <option value="<?php echo safe($type); ?>" <?php echo ($item['cost_type'] ?? '') === $type ? 'selected' : ''; ?>><?php echo safe($type); ?></option>
                                 <?php endforeach; ?>
                               </select>
@@ -1041,7 +1120,8 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
                 <table class="item-table">
                   <thead>
                     <tr>
-                      <th>Description</th>
+                      <th>Item</th>
+                      <th>Selling price</th>
                       <th>Cost type</th>
                       <th>Revenue</th>
                       <th>Freight</th>
@@ -1051,7 +1131,11 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
                   <tbody>
                     <?php foreach ($detailsItems as $item): ?>
                       <tr>
-                        <td><?php echo safe($item['description'] ?? '—'); ?></td>
+                        <td>
+                          <div><?php echo safe($item['item_name'] ?? '—'); ?></div>
+                          <small><?php echo safe($item['description'] ?? '—'); ?></small>
+                        </td>
+                        <td><?php echo safe($item['selling_price'] ?? '—'); ?></td>
                         <td><?php echo safe($item['cost_type'] ?? '—'); ?></td>
                         <td><?php echo safe(($item['revenue_currency'] ?? '') . ' ' . ($item['revenue_amount'] ?? '')); ?></td>
                         <td><?php echo safe(($item['freight_currency'] ?? '') . ' ' . ($item['freight_amount'] ?? '')); ?></td>
@@ -1085,12 +1169,13 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
             <label class="label">Scope</label>
             <div style="display:flex; gap:10px; align-items:center;">
               <label><input type="radio" name="budget_scope" value="project" <?php echo $submitted['scope'] === 'project' ? 'checked' : ''; ?> /> Project</label>
+              <label><input type="radio" name="budget_scope" value="batch" <?php echo $submitted['scope'] === 'batch' ? 'checked' : ''; ?> /> Batch</label>
               <label><input type="radio" name="budget_scope" value="sub-batch" <?php echo $submitted['scope'] === 'sub-batch' ? 'checked' : ''; ?> /> Sub-Batch Detail</label>
             </div>
           </div>
           <div>
             <label class="label" for="budget-project">Project</label>
-            <select id="budget-project" name="project_id">
+            <select id="budget-project" name="project_id" data-project-select data-selected-value="<?php echo safe($submitted['project_id']); ?>">
               <option value="">-- Select Project --</option>
               <?php foreach ($projectOptions as $option): ?>
                 <option value="<?php echo safe($option['value']); ?>" <?php echo $submitted['project_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['value'] . ' | ' . $option['label']); ?></option>
@@ -1098,8 +1183,17 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
             </select>
           </div>
           <div>
+            <label class="label" for="budget-batch">Batch</label>
+            <select id="budget-batch" name="batch_id" data-batch-select data-selected-value="<?php echo safe($submitted['batch_id']); ?>">
+              <option value="">-- Select Batch --</option>
+              <?php foreach ($batchOptions as $option): ?>
+                <option value="<?php echo safe($option['value']); ?>" <?php echo $submitted['batch_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['value'] . ' | ' . $option['label']); ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div>
             <label class="label" for="budget-sub-batch">Sub-Batch Detail</label>
-            <select id="budget-sub-batch" name="sub_batch_detail_id">
+            <select id="budget-sub-batch" name="sub_batch_detail_id" data-sub-batch-select data-selected-value="<?php echo safe($submitted['sub_batch_detail_id']); ?>">
               <option value="">-- Select Sub-Batch --</option>
               <?php foreach ($subBatchOptions as $option): ?>
                 <option value="<?php echo safe($option['value']); ?>" <?php echo $submitted['sub_batch_detail_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['value'] . ' | ' . $option['label']); ?></option>
@@ -1175,10 +1269,11 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
           </div>
           <div class="message-table__wrapper">
             <table class="item-table" data-item-table data-item-context="create">
-              <thead>
+               <thead>
                 <tr>
                   <th style="width:36px;">Select</th>
-                  <th>Description</th>
+                  <th>Item</th>
+                  <th>Selling price</th>
                   <th>Cost type</th>
                   <th>Revenue</th>
                   <th>Freight</th>
@@ -1186,12 +1281,16 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
                 </tr>
               </thead>
               <tbody data-item-body>
-                <?php foreach ($createItems as $item): ?>
+                 <?php foreach ($createItems as $item): ?>
                   <tr data-item-row>
                     <td><input type="checkbox" class="item-select" /></td>
                     <td>
                       <input type="hidden" name="item_id[]" value="<?php echo safe($item['item_id'] ?? ''); ?>" />
+                      <input type="text" name="item_name[]" value="<?php echo safe($item['item_name'] ?? ''); ?>" placeholder="Item name" />
                       <input type="text" name="item_description[]" value="<?php echo safe($item['description'] ?? ''); ?>" placeholder="Item description" />
+                    </td>
+                    <td>
+                      <input type="number" step="0.01" name="item_selling_price[]" value="<?php echo safe($item['selling_price'] ?? ''); ?>" placeholder="Selling price" />
                     </td>
                     <td>
                       <select name="item_cost_type[]">
@@ -1255,12 +1354,12 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
     <tbody>
       <?php foreach ($budgets as $budget): ?>
         <?php
-          $scope = $budget['project_id'] ? 'Project' : 'Sub-batch';
-          $linkId = $budget['project_id'] ?: $budget['sub_batch_detail_id'];
+           $scope = $budget['sub_batch_detail_id'] ? 'Sub-batch' : ($budget['batch_id'] ? 'Batch' : 'Project');
+          $linkId = $budget['sub_batch_detail_id'] ?: ($budget['batch_id'] ?: $budget['project_id']);
           $linkLabel = $budget['project_id']
             ? option_label($projectOptions, (string) $budget['project_id'])
-            : option_label($subBatchOptions, (string) $budget['sub_batch_detail_id']);
-          $budgetTitle = $budget['project_name'] ?: $linkLabel ?: ($budget['sub_batch_name'] ?? $linkId);
+              : ($budget['sub_batch_detail_id'] ? option_label($subBatchOptions, (string) $budget['sub_batch_detail_id']) : option_label($batchOptions, (string) $budget['batch_id']));
+          $budgetTitle = $budget['project_name'] ?: ($budget['batch_name'] ?? '') ?: ($budget['sub_batch_name'] ?? $linkId);
         ?>
         <tr>
           <td><?php echo safe($budget['budget_id']); ?></td>
@@ -1281,6 +1380,8 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
  <script>
     const currencyOptions = <?php echo json_encode($currencyOptions); ?>;
     const costTypeOptions = <?php echo json_encode($costTypes); ?>;
+    const batchOptionsData = <?php echo json_encode($batchDataForJs); ?>;
+    const subBatchOptionsData = <?php echo json_encode($subBatchDataForJs); ?>;
 
     const escapeHtml = (value = '') => String(value)
       .replace(/&/g, '&amp;')
@@ -1352,24 +1453,117 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
         .concat(costTypeOptions.map((type) => `<option value="${escapeHtml(type)}" ${type === selected ? 'selected' : ''}>${escapeHtml(type)}</option>`))
         .join('');
 
+      const buildOptionList = (items, labelBuilder, selected, placeholderLabel) => {
+        const options = items.map((item) => {
+          const value = escapeHtml(item.value);
+          const label = escapeHtml(labelBuilder(item));
+          const isSelected = value === selected ? 'selected' : '';
+          return `<option value="${value}" ${isSelected}>${label}</option>`;
+        });
+
+        return [`<option value="">${placeholderLabel}</option>`].concat(options).join('');
+      };
+
+      const attachLinkedSelects = (form) => {
+        const projectSelect = form.querySelector('[data-project-select]');
+        const batchSelect = form.querySelector('[data-batch-select]');
+        const subBatchSelect = form.querySelector('[data-sub-batch-select]');
+        const scopeRadios = form.querySelectorAll('input[name="budget_scope"]');
+
+        if (!projectSelect && !batchSelect && !subBatchSelect) {
+          return;
+        }
+
+        const buildBatchLabel = (batch) => {
+          const parts = [batch.project_name, batch.batch_name].filter(Boolean);
+          return parts.join(' • ') || `Batch ${batch.batch_id}`;
+        };
+
+        const buildSubBatchLabel = (detail) => {
+          const parts = [detail.project_name, detail.batch_name, detail.sub_batch_name].filter(Boolean);
+          return parts.join(' • ') || `Sub batch ${detail.sub_batch_detail_id}`;
+        };
+
+        const refreshBatchOptions = () => {
+          if (!batchSelect) return;
+          const selected = batchSelect.value || batchSelect.dataset.selectedValue || '';
+          const projectId = projectSelect?.value || '';
+          const options = batchOptionsData
+            .filter((batch) => !projectId || batch.project_id === projectId)
+            .map((batch) => ({ value: batch.batch_id, label: buildBatchLabel(batch) }));
+
+          batchSelect.innerHTML = buildOptionList(options, (item) => item.label, selected, '-- Select Batch --');
+          batchSelect.value = selected;
+          if (!batchSelect.value && selected) {
+            batchSelect.value = '';
+          }
+          batchSelect.dataset.selectedValue = batchSelect.value;
+        };
+
+        const refreshSubBatchOptions = () => {
+          if (!subBatchSelect) return;
+          const selected = subBatchSelect.value || subBatchSelect.dataset.selectedValue || '';
+          const batchId = batchSelect?.value || '';
+          const projectId = projectSelect?.value || '';
+          const options = subBatchOptionsData
+            .filter((detail) => (batchId ? detail.batch_id === batchId : (!projectId || detail.project_id === projectId)))
+            .map((detail) => ({ value: detail.sub_batch_detail_id, label: buildSubBatchLabel(detail) }));
+
+          subBatchSelect.innerHTML = buildOptionList(options, (item) => item.label, selected, '-- Select Sub-Batch --');
+          subBatchSelect.value = selected;
+          if (!subBatchSelect.value && selected) {
+            subBatchSelect.value = '';
+          }
+          subBatchSelect.dataset.selectedValue = subBatchSelect.value;
+        };
+
+        const syncScopeRequirements = () => {
+          const activeScope = form.querySelector('input[name="budget_scope"]:checked')?.value || 'project';
+          if (projectSelect) projectSelect.required = activeScope === 'project';
+          if (batchSelect) batchSelect.required = activeScope === 'batch';
+          if (subBatchSelect) subBatchSelect.required = activeScope === 'sub-batch';
+        };
+
+        projectSelect?.addEventListener('change', () => {
+          refreshBatchOptions();
+          refreshSubBatchOptions();
+        });
+
+        batchSelect?.addEventListener('change', () => {
+          refreshSubBatchOptions();
+        });
+
+        scopeRadios.forEach((radio) => radio.addEventListener('change', syncScopeRequirements));
+
+        refreshBatchOptions();
+        refreshSubBatchOptions();
+        syncScopeRequirements();
+      };
+
       const createItemRow = (data = {}) => {
         const row = document.createElement('tr');
         row.setAttribute('data-item-row', '');
 
         const itemId = data.item_id || '';
+        const itemName = escapeHtml(data.item_name || '');
         const description = escapeHtml(data.description || '');
+        const sellingPrice = escapeHtml(data.selling_price || '');
         const costType = data.cost_type || '';
         const revenueCurrency = data.revenue_currency || 'EGP';
         const freightCurrency = data.freight_currency || 'EGP';
         const supplierCurrency = data.supplier_cost_currency || 'EGP';
 
         row.innerHTML = `
-          <td>
+           <td>
             <input type="checkbox" class="item-select" value="${escapeHtml(itemId)}" />
             <input type="hidden" name="item_id[]" value="${escapeHtml(itemId)}" />
           </td>
           <td>
+            <input type="text" name="item_name[]" value="${itemName}" placeholder="Item name" />
             <input type="text" name="item_description[]" value="${description}" placeholder="Item description" />
+          </td>
+          <td>
+            <input type="number" step="0.01" name="item_selling_price[]" value="${sellingPrice}" placeholder="Selling price" />
           </td>
           <td>
             <select name="item_cost_type[]">${buildCostOptions(costType)}</select>
@@ -1389,10 +1583,16 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
             <select name="item_supplier_cost_currency[]">${buildCurrencyOptions(supplierCurrency)}</select>
             <input type="number" step="0.0001" name="item_supplier_cost_exchange_rate[]" value="${escapeHtml(data.supplier_cost_exchange_rate || '')}" placeholder="Rate" />
           </td>
-        `;
+          `;
 
         return row;
       };
+
+      document.querySelectorAll('form').forEach((form) => {
+        if (form.querySelector('[data-project-select],[data-batch-select],[data-sub-batch-select]')) {
+          attachLinkedSelects(form);
+        }
+      });
 
       const syncRowCount = (tbody, desired) => {
         const parsed = Number.parseInt(desired, 10);
