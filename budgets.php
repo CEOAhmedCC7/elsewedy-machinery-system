@@ -832,8 +832,14 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
                 </div>
               </div>
               <?php $budgetItems = $itemsByBudget[$budget['budget_id']] ?? []; ?>
-              <div>
+             <div data-item-section>
                 <h4 style="margin:0 0 6px;">Budget items</h4>
+                <div class="item-table__actions" style="margin-bottom:6px;">
+                  <label for="item-count-<?php echo safe($budget['budget_id']); ?>">How many items?</label>
+                  <input id="item-count-<?php echo safe($budget['budget_id']); ?>" type="number" min="0" value="<?php echo max(1, count($budgetItems)); ?>" data-item-count />
+                  <button class="btn btn-neutral" type="button" data-add-item-row>Add new item</button>
+                  <button class="btn btn-delete" type="button" data-delete-selected>Delete selected</button>
+                </div>
                 <div class="message-table__wrapper">
                   <table class="item-table" data-item-table data-item-context="manage-<?php echo safe($budget['budget_id']); ?>">
                     <thead>
@@ -939,13 +945,7 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
                         <?php endforeach; ?>
                       <?php endif; ?>
                     </tbody>
-                  </table>
-                </div>
-                <div class="item-table__actions">
-                  <label for="item-count-<?php echo safe($budget['budget_id']); ?>">How many items?</label>
-                  <input id="item-count-<?php echo safe($budget['budget_id']); ?>" type="number" min="0" value="<?php echo max(1, count($budgetItems)); ?>" data-item-count />
-                  <button class="btn btn-neutral" type="button" data-add-item-row>Add new item</button>
-                  <button class="btn btn-delete" type="button" data-delete-selected>Delete selected</button>
+                </table>
                 </div>
               </div>
               <div class="actions" style="justify-content:flex-end; gap:10px;">
@@ -1165,8 +1165,14 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
           </div>
         </div>
         <?php $createItems = $submittedItems ?: [[]]; ?>
-        <div>
+       <div data-item-section>
           <h4 style="margin:0 0 6px;">Budget items</h4>
+          <div class="item-table__actions" style="margin-bottom:6px;">
+            <label for="create-item-count">How many items?</label>
+            <input id="create-item-count" type="number" min="0" value="<?php echo max(1, count($createItems)); ?>" data-item-count />
+            <button class="btn btn-neutral" type="button" data-add-item-row>Add new item</button>
+            <button class="btn btn-delete" type="button" data-delete-selected>Delete selected</button>
+          </div>
           <div class="message-table__wrapper">
             <table class="item-table" data-item-table data-item-context="create">
               <thead>
@@ -1226,12 +1232,6 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
                 <?php endforeach; ?>
               </tbody>
             </table>
-          </div>
-          <div class="item-table__actions">
-            <label for="create-item-count">How many items?</label>
-            <input id="create-item-count" type="number" min="0" value="<?php echo max(1, count($createItems)); ?>" data-item-count />
-            <button class="btn btn-neutral" type="button" data-add-item-row>Add new item</button>
-            <button class="btn btn-delete" type="button" data-delete-selected>Delete selected</button>
           </div>
         </div>
         <div class="actions" style="justify-content:flex-end; gap:10px;">
@@ -1416,7 +1416,7 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
       };
 
       document.querySelectorAll('[data-item-table]').forEach((table) => {
-        const section = table.closest('div');
+        const section = table.closest('[data-item-section]') || table.closest('div');
         if (!section) return;
 
         const tbody = table.querySelector('[data-item-body]');
