@@ -74,6 +74,7 @@ function normalize_items_from_request(array $source): array
     $ids = (array) ($source['item_id'] ?? []);
     $names = (array) ($source['item_name'] ?? []);
     $descriptions = (array) ($source['item_description'] ?? []);
+    $quantities = (array) ($source['item_qty'] ?? []);
     $sellingPrices = (array) ($source['item_selling_price'] ?? []);
     $costTypes = (array) ($source['item_cost_type'] ?? []);
     $revenueAmounts = (array) ($source['item_revenue_amount'] ?? []);
@@ -85,6 +86,7 @@ function normalize_items_from_request(array $source): array
     $supplierAmounts = (array) ($source['item_supplier_cost_amount'] ?? []);
     $supplierCurrencies = (array) ($source['item_supplier_cost_currency'] ?? []);
     $supplierRates = (array) ($source['item_supplier_cost_exchange_rate'] ?? []);
+
 
     $items = [];
     foreach ($descriptions as $index => $description) {
@@ -99,12 +101,13 @@ function normalize_items_from_request(array $source): array
         $freightAmount = trim((string) ($freightAmounts[$index] ?? ''));
         $freightCurrency = trim((string) ($freightCurrencies[$index] ?? ''));
         $freightRate = trim((string) ($freightRates[$index] ?? ''));
-        $supplierAmount = trim((string) ($supplierAmounts[$index] ?? ''));
+       $supplierAmount = trim((string) ($supplierAmounts[$index] ?? ''));
         $supplierCurrency = trim((string) ($supplierCurrencies[$index] ?? ''));
         $supplierRate = trim((string) ($supplierRates[$index] ?? ''));
 
        $hasValues = $cleanDescription !== ''
             || $itemName !== ''
+            || $quantity !== ''
             || $sellingPrice !== ''
             || $costType !== ''
             || $revenueAmount !== ''
@@ -116,9 +119,10 @@ function normalize_items_from_request(array $source): array
         }
 
         $items[] = [
-            'item_id' => $itemId,
+           'item_id' => $itemId,
             'item_name' => $itemName,
             'description' => $cleanDescription,
+            'qty' => $quantity,
             'selling_price' => $sellingPrice,
             'cost_type' => $costType,
             'revenue_amount' => $revenueAmount,
@@ -145,7 +149,7 @@ $submitted = [
     'project_id' => trim($_POST['project_id'] ?? ''),
     'batch_id' => trim($_POST['batch_id'] ?? ''),
     'sub_batch_detail_id' => trim($_POST['sub_batch_detail_id'] ?? ''),
-    'cost_type' => trim($_POST['cost_type'] ?? ''),
+      'cost_type' => trim($_POST['cost_type'] ?? '') ?: ($costTypes[0] ?? ''),
     'revenue_amount' => trim($_POST['revenue_amount'] ?? ''),
     'revenue_currency' => trim($_POST['revenue_currency'] ?? 'EGP'),
     'revenue_exchange_rate' => trim($_POST['revenue_exchange_rate'] ?? ''),
@@ -208,13 +212,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ]);
 
                     if ($submittedItems) {
-                        $itemInsert = $pdo->prepare('INSERT INTO items (budget_id, item_name, description, selling_price, cost_type, revenue_amount, revenue_currency, revenue_exchange_rate, freight_amount, freight_currency, freight_exchange_rate, supplier_cost_amount, supplier_cost_currency, supplier_cost_exchange_rate) VALUES (:budget_id, :item_name, :description, :selling_price, :cost_type, :rev_amount, :rev_currency, :rev_rate, :freight_amount, :freight_currency, :freight_rate, :supplier_amount, :supplier_currency, :supplier_rate)');
+                         $itemInsert = $pdo->prepare('INSERT INTO items (budget_id, item_name, description, qty, selling_price, cost_type, revenue_amount, revenue_currency, revenue_exchange_rate, freight_amount, freight_currency, freight_exchange_rate, supplier_cost_amount, supplier_cost_currency, supplier_cost_exchange_rate) VALUES (:budget_id, :item_name, :description, :qty, :selling_price, :cost_type, :rev_amount, :rev_currency, :rev_rate, :freight_amount, :freight_currency, :freight_rate, :supplier_amount, :supplier_currency, :supplier_rate)');
 
                         foreach ($submittedItems as $item) {
                             $itemInsert->execute([
-                                ':budget_id' => $budgetId,
+                                 ':budget_id' => $budgetId,
                                 ':item_name' => $item['item_name'] ?: null,
                                 ':description' => $item['description'] ?: null,
+                                ':qty' => $item['qty'] !== '' ? $item['qty'] : null,
                                 ':selling_price' => $item['selling_price'] !== '' ? $item['selling_price'] : null,
                                 ':cost_type' => $item['cost_type'] ?: null,
                                 ':rev_amount' => $item['revenue_amount'] !== '' ? $item['revenue_amount'] : null,
@@ -284,20 +289,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     if ($items) {
-                        $updateStmt = $pdo->prepare('UPDATE items SET item_name = :item_name, description = :description, selling_price = :selling_price, cost_type = :cost_type, revenue_amount = :rev_amount, revenue_currency = :rev_currency, revenue_exchange_rate = :rev_rate, freight_amount = :freight_amount, freight_currency = :freight_currency, freight_exchange_rate = :freight_rate, supplier_cost_amount = :supplier_amount, supplier_cost_currency = :supplier_currency, supplier_cost_exchange_rate = :supplier_rate WHERE item_id = :id AND budget_id = :budget_id');
-                        $insertStmt = $pdo->prepare('INSERT INTO items (budget_id, item_name, description, selling_price, cost_type, revenue_amount, revenue_currency, revenue_exchange_rate, freight_amount, freight_currency, freight_exchange_rate, supplier_cost_amount, supplier_cost_currency, supplier_cost_exchange_rate) VALUES (:budget_id, :item_name, :description, :selling_price, :cost_type, :rev_amount, :rev_currency, :rev_rate, :freight_amount, :freight_currency, :freight_rate, :supplier_amount, :supplier_currency, :supplier_rate)');
-
+                        $updateStmt = $pdo->prepare('UPDATE items SET item_name = :item_name, description = :description, qty = :qty, selling_price = :selling_price, cost_type = :cost_type, revenue_amount = :rev_amount, revenue_currency = :rev_currency, revenue_exchange_rate = :rev_rate, freight_amount = :freight_amount, freight_currency = :freight_currency, freight_exchange_rate = :freight_rate, supplier_cost_amount = :supplier_amount, supplier_cost_currency = :supplier_currency, supplier_cost_exchange_rate = :supplier_rate WHERE item_id = :id AND budget_id = :budget_id');
+                        $insertStmt = $pdo->prepare('INSERT INTO items (budget_id, item_name, description, qty, selling_price, cost_type, revenue_amount, revenue_currency, revenue_exchange_rate, freight_amount, freight_currency, freight_exchange_rate, supplier_cost_amount, supplier_cost_currency, supplier_cost_exchange_rate) VALUES (:budget_id, :item_name, :description, :qty, :selling_price, :cost_type, :rev_amount, :rev_currency, :rev_rate, :freight_amount, :freight_currency, :freight_rate, :supplier_amount, :supplier_currency, :supplier_rate)');
                         foreach ($items as $item) {
                             if ($item['item_id'] !== '') {
                                 if (in_array($item['item_id'], $deleteItems, true)) {
                                     continue;
                                 }
 
+
                                 $updateStmt->execute([
                                     ':id' => $item['item_id'],
-                                    ':budget_id' => $submitted['budget_id'],
+                                     ':budget_id' => $submitted['budget_id'],
                                     ':item_name' => $item['item_name'] ?: null,
                                     ':description' => $item['description'] ?: null,
+                                    ':qty' => $item['qty'] !== '' ? $item['qty'] : null,
                                     ':selling_price' => $item['selling_price'] !== '' ? $item['selling_price'] : null,
                                     ':cost_type' => $item['cost_type'] ?: null,
                                     ':rev_amount' => $item['revenue_amount'] !== '' ? $item['revenue_amount'] : null,
@@ -316,6 +322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     ':budget_id' => $submitted['budget_id'],
                                     ':item_name' => $item['item_name'] ?: null,
                                     ':description' => $item['description'] ?: null,
+                                    ':qty' => $item['qty'] !== '' ? $item['qty'] : null,
                                     ':selling_price' => $item['selling_price'] !== '' ? $item['selling_price'] : null,
                                     ':cost_type' => $item['cost_type'] ?: null,
                                     ':rev_amount' => $item['revenue_amount'] !== '' ? $item['revenue_amount'] : null,
@@ -534,6 +541,11 @@ $subBatchDataForJs = array_map(
       justify-content: center;
       padding: 8px;
       border-radius: 10px;
+    }
+
+    .message-dialog.is-wide {
+      width: min(95vw, 1200px);
+      max-width: 1200px;
     }
 
     .budget-status {
@@ -799,7 +811,7 @@ $subBatchDataForJs = array_map(
 
       <?php foreach ($budgets as $budget): ?>
         <div class="message-modal budget-modal" data-manage-modal="<?php echo safe($budget['budget_id']); ?>" role="dialog" aria-modal="true" aria-label="Manage budget <?php echo safe($budget['budget_id']); ?>">
-          <div class="message-dialog">
+          <div class="message-dialog is-wide">
             <div class="message-dialog__header">
               <span class="message-title">Manage budget <?php echo safe($budget['budget_id']); ?></span>
               <button class="message-close" type="button" aria-label="Close manage budget" data-close-modal>&times;</button>
@@ -911,10 +923,11 @@ $subBatchDataForJs = array_map(
                   <button class="btn btn-delete" type="button" data-delete-selected>Delete selected</button>
                 </div>
                 <div class="message-table__wrapper">
-                  <table class="item-table" data-item-table data-item-context="manage-<?php echo safe($budget['budget_id']); ?>">
+                 <table class="item-table" data-item-table data-item-context="manage-<?php echo safe($budget['budget_id']); ?>">
                     <thead>
                       <tr>
                         <th style="width:36px;">Select</th>
+                        <th>Qty</th>
                         <th>Item</th>
                         <th>Selling price</th>
                         <th>Cost type</th>
@@ -924,9 +937,12 @@ $subBatchDataForJs = array_map(
                       </tr>
                     </thead>
                     <tbody data-item-body>
-                      <?php if (!$budgetItems): ?>
+                     <?php if (!$budgetItems): ?>
                         <tr data-item-row>
                           <td><input type="checkbox" class="item-select" /></td>
+                          <td>
+                            <input type="number" step="1" min="0" name="item_qty[]" placeholder="Qty" />
+                          </td>
                           <td>
                             <input type="hidden" name="item_id[]" value="" />
                             <input type="text" name="item_name[]" placeholder="Item name" />
@@ -973,10 +989,13 @@ $subBatchDataForJs = array_map(
                         </tr>
                       <?php else: ?>
                         <?php foreach ($budgetItems as $item): ?>
-                          <tr data-item-row>
+                         <tr data-item-row>
                             <td>
                               <input type="checkbox" class="item-select" value="<?php echo safe($item['item_id']); ?>" />
                               <input type="hidden" name="item_id[]" value="<?php echo safe($item['item_id']); ?>" />
+                            </td>
+                            <td>
+                              <input type="number" step="1" min="0" name="item_qty[]" value="<?php echo safe($item['qty'] ?? ''); ?>" placeholder="Qty" />
                             </td>
                            <td>
                             <input type="text" name="item_name[]" value="<?php echo safe($item['item_name'] ?? ''); ?>" placeholder="Item name" />
@@ -1039,8 +1058,8 @@ $subBatchDataForJs = array_map(
           </div>
         </div>
 
-         <div class="message-modal budget-modal" data-details-modal="<?php echo safe($budget['budget_id']); ?>" role="dialog" aria-modal="true" aria-label="Budget details for <?php echo safe($budget['budget_id']); ?>">
-          <div class="message-dialog">
+        <div class="message-modal budget-modal" data-details-modal="<?php echo safe($budget['budget_id']); ?>" role="dialog" aria-modal="true" aria-label="Budget details for <?php echo safe($budget['budget_id']); ?>">
+          <div class="message-dialog is-wide">
             <div class="message-dialog__header">
               <span class="message-title">Budget details</span>
               <button class="message-close" type="button" aria-label="Close budget details" data-close-modal>&times;</button>
@@ -1117,10 +1136,11 @@ $subBatchDataForJs = array_map(
             <?php if ($detailsItems): ?>
               <h4 style="margin:12px 0 6px;">Items (<?php echo count($detailsItems); ?>)</h4>
               <div class="message-table__wrapper">
-                <table class="item-table">
+                 <table class="item-table">
                   <thead>
                     <tr>
                       <th>Item</th>
+                      <th>Qty</th>
                       <th>Selling price</th>
                       <th>Cost type</th>
                       <th>Revenue</th>
@@ -1129,12 +1149,13 @@ $subBatchDataForJs = array_map(
                     </tr>
                   </thead>
                   <tbody>
-                    <?php foreach ($detailsItems as $item): ?>
+                     <?php foreach ($detailsItems as $item): ?>
                       <tr>
                         <td>
                           <div><?php echo safe($item['item_name'] ?? '—'); ?></div>
                           <small><?php echo safe($item['description'] ?? '—'); ?></small>
                         </td>
+                        <td><?php echo safe($item['qty'] ?? '—'); ?></td>
                         <td><?php echo safe($item['selling_price'] ?? '—'); ?></td>
                         <td><?php echo safe($item['cost_type'] ?? '—'); ?></td>
                         <td><?php echo safe(($item['revenue_currency'] ?? '') . ' ' . ($item['revenue_amount'] ?? '')); ?></td>
@@ -1153,7 +1174,7 @@ $subBatchDataForJs = array_map(
   </main>
 
   <div class="message-modal budget-modal" id="create-budget-modal" role="dialog" aria-modal="true" aria-label="Create budget">
-    <div class="message-dialog">
+    <div class="message-dialog is-wide">
       <div class="message-dialog__header">
         <span class="message-title">Create a new budget</span>
         <button class="message-close" type="button" aria-label="Close create budget" data-close-modal>&times;</button>
@@ -1162,16 +1183,12 @@ $subBatchDataForJs = array_map(
         <input type="hidden" name="action" value="create" />
         <div class="budget-form-grid">
           <div>
-            <label class="label" for="budget-id">Budget ID</label>
-            <input id="budget-id" name="budget_id" type="text" list="budget-id-options" placeholder="bud_1234" value="<?php echo safe($submitted['budget_id']); ?>" />
-          </div>
-          <div>
             <label class="label">Scope</label>
-            <div style="display:flex; gap:10px; align-items:center;">
-              <label><input type="radio" name="budget_scope" value="project" <?php echo $submitted['scope'] === 'project' ? 'checked' : ''; ?> /> Project</label>
-              <label><input type="radio" name="budget_scope" value="batch" <?php echo $submitted['scope'] === 'batch' ? 'checked' : ''; ?> /> Batch</label>
-              <label><input type="radio" name="budget_scope" value="sub-batch" <?php echo $submitted['scope'] === 'sub-batch' ? 'checked' : ''; ?> /> Sub-Batch Detail</label>
-            </div>
+            <select id="budget-scope" name="budget_scope">
+              <option value="project" <?php echo $submitted['scope'] === 'project' ? 'selected' : ''; ?>>Project</option>
+              <option value="batch" <?php echo $submitted['scope'] === 'batch' ? 'selected' : ''; ?>>Batch</option>
+              <option value="sub-batch" <?php echo $submitted['scope'] === 'sub-batch' ? 'selected' : ''; ?>>Sub-Batch Detail</option>
+            </select>
           </div>
           <div>
             <label class="label" for="budget-project">Project</label>
@@ -1200,63 +1217,7 @@ $subBatchDataForJs = array_map(
               <?php endforeach; ?>
             </select>
           </div>
-          <div>
-            <label class="label" for="budget-type">Cost Type</label>
-            <select id="budget-type" name="cost_type" required>
-              <option value="">-- Select Cost Type --</option>
-              <?php foreach ($costTypes as $type): ?>
-                <option value="<?php echo safe($type); ?>" <?php echo $submitted['cost_type'] === $type ? 'selected' : ''; ?>><?php echo safe($type); ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div>
-            <label class="label" for="revenue-amount">Revenue Amount</label>
-            <input id="revenue-amount" name="revenue_amount" type="number" step="0.01" placeholder="100000" value="<?php echo safe($submitted['revenue_amount']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="revenue-currency">Revenue Currency</label>
-            <select id="revenue-currency" name="revenue_currency">
-              <?php foreach (['EGP','USD','EUR'] as $currency): ?>
-                <option value="<?php echo $currency; ?>" <?php echo $submitted['revenue_currency'] === $currency ? 'selected' : ''; ?>><?php echo $currency; ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div>
-            <label class="label" for="revenue-rate">Revenue Exchange Rate</label>
-            <input id="revenue-rate" name="revenue_exchange_rate" type="number" step="0.0001" placeholder="48.50" value="<?php echo safe($submitted['revenue_exchange_rate']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="freight-amount">Freight Amount</label>
-            <input id="freight-amount" name="freight_amount" type="number" step="0.01" placeholder="5000" value="<?php echo safe($submitted['freight_amount']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="freight-currency">Freight Currency</label>
-            <select id="freight-currency" name="freight_currency">
-              <?php foreach (['EGP','USD','EUR'] as $currency): ?>
-                <option value="<?php echo $currency; ?>" <?php echo $submitted['freight_currency'] === $currency ? 'selected' : ''; ?>><?php echo $currency; ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div>
-            <label class="label" for="freight-rate">Freight Exchange Rate</label>
-            <input id="freight-rate" name="freight_exchange_rate" type="number" step="0.0001" placeholder="48.50" value="<?php echo safe($submitted['freight_exchange_rate']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="supplier-cost">Supplier Cost Amount</label>
-            <input id="supplier-cost" name="supplier_cost_amount" type="number" step="0.01" placeholder="7500" value="<?php echo safe($submitted['supplier_cost_amount']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="supplier-currency">Supplier Currency</label>
-            <select id="supplier-currency" name="supplier_cost_currency">
-              <?php foreach (['EGP','USD','EUR'] as $currency): ?>
-                <option value="<?php echo $currency; ?>" <?php echo $submitted['supplier_cost_currency'] === $currency ? 'selected' : ''; ?>><?php echo $currency; ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div>
-            <label class="label" for="supplier-rate">Supplier Exchange Rate</label>
-            <input id="supplier-rate" name="supplier_cost_exchange_rate" type="number" step="0.0001" placeholder="48.50" value="<?php echo safe($submitted['supplier_cost_exchange_rate']); ?>" />
-          </div>
+            <input type="hidden" name="cost_type" value="<?php echo safe($submitted['cost_type'] ?: ($costTypes[0] ?? '')); ?>" />
         </div>
         <?php $createItems = $submittedItems ?: [[]]; ?>
        <div data-item-section>
@@ -1272,6 +1233,7 @@ $subBatchDataForJs = array_map(
                <thead>
                 <tr>
                   <th style="width:36px;">Select</th>
+                  <th>Qty</th>
                   <th>Item</th>
                   <th>Selling price</th>
                   <th>Cost type</th>
@@ -1281,9 +1243,12 @@ $subBatchDataForJs = array_map(
                 </tr>
               </thead>
               <tbody data-item-body>
-                 <?php foreach ($createItems as $item): ?>
-                  <tr data-item-row>
-                    <td><input type="checkbox" class="item-select" /></td>
+                <?php foreach ($createItems as $item): ?>
+                 <tr data-item-row>
+                   <td><input type="checkbox" class="item-select" /></td>
+                    <td>
+                      <input type="number" step="1" min="0" name="item_qty[]" value="<?php echo safe($item['qty'] ?? ''); ?>" placeholder="Qty" />
+                    </td>
                     <td>
                       <input type="hidden" name="item_id[]" value="<?php echo safe($item['item_id'] ?? ''); ?>" />
                       <input type="text" name="item_name[]" value="<?php echo safe($item['item_name'] ?? ''); ?>" placeholder="Item name" />
@@ -1339,13 +1304,7 @@ $subBatchDataForJs = array_map(
         </div>
       </form>
     </div>
-  </div>
-
-  <datalist id="budget-id-options">
-    <?php foreach ($budgetIdOptions as $option): ?>
-      <option value="<?php echo safe($option); ?>"></option>
-    <?php endforeach; ?>
-  </datalist>
+   </div>
 
   <table id="budgets-table" style="display:none;">
     <thead>
@@ -1469,6 +1428,7 @@ $subBatchDataForJs = array_map(
         const batchSelect = form.querySelector('[data-batch-select]');
         const subBatchSelect = form.querySelector('[data-sub-batch-select]');
         const scopeRadios = form.querySelectorAll('input[name="budget_scope"]');
+        const scopeSelect = form.querySelector('select[name="budget_scope"]');
 
         if (!projectSelect && !batchSelect && !subBatchSelect) {
           return;
@@ -1518,7 +1478,8 @@ $subBatchDataForJs = array_map(
         };
 
         const syncScopeRequirements = () => {
-          const activeScope = form.querySelector('input[name="budget_scope"]:checked')?.value || 'project';
+          const radioScope = form.querySelector('input[name="budget_scope"]:checked');
+          const activeScope = radioScope?.value || scopeSelect?.value || 'project';
           if (projectSelect) projectSelect.required = activeScope === 'project';
           if (batchSelect) batchSelect.required = activeScope === 'batch';
           if (subBatchSelect) subBatchSelect.required = activeScope === 'sub-batch';
@@ -1534,6 +1495,7 @@ $subBatchDataForJs = array_map(
         });
 
         scopeRadios.forEach((radio) => radio.addEventListener('change', syncScopeRequirements));
+        scopeSelect?.addEventListener('change', syncScopeRequirements);
 
         refreshBatchOptions();
         refreshSubBatchOptions();
@@ -1557,6 +1519,9 @@ $subBatchDataForJs = array_map(
            <td>
             <input type="checkbox" class="item-select" value="${escapeHtml(itemId)}" />
             <input type="hidden" name="item_id[]" value="${escapeHtml(itemId)}" />
+          </td>
+          <td>
+            <input type="number" step="1" min="0" name="item_qty[]" value="${escapeHtml(data.qty || '')}" placeholder="Qty" />
           </td>
           <td>
             <input type="text" name="item_name[]" value="${itemName}" placeholder="Item name" />
