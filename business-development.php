@@ -42,37 +42,101 @@ function option_label(array $options, string $value): string
     return $value;
 }
 
-function store_opportunity_upload(array $upload): string
+function normalize_opportunity_files(?string $stored): array
 {
-    if ($upload['error'] !== UPLOAD_ERR_OK) {
-        throw new RuntimeException('Error uploading file.');
+    if ($stored === null) {
+        return [];
     }
 
-    $originalName = basename((string) $upload['name']);
-    $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+    $trimmed = trim($stored);
+    if ($trimmed === '') {
+        return [];
+    }
+
+    $decoded = json_decode($trimmed, true);
+    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+        return array_values(array_filter($decoded, static function ($value) {
+            return is_string($value) && trim($value) !== '';
+        }));
+    }
+
+    return [$trimmed];
+}
+
+function serialize_opportunity_files(array $files): string
+{
+    $filtered = array_values(array_filter($files, static function ($value) {
+        return is_string($value) && trim($value) !== '';
+    }));
+
+    if ($filtered === []) {
+        return '';
+    }
+
+    return json_encode($filtered, JSON_UNESCAPED_SLASHES);
+}
+
+function normalize_upload_batch(array $upload): array
+{
+    if (!is_array($upload['name'])) {
+        return [$upload];
+    }
+
+    $files = [];
+    foreach ($upload['name'] as $index => $name) {
+        $files[] = [
+            'name' => $name,
+            'type' => $upload['type'][$index] ?? '',
+            'tmp_name' => $upload['tmp_name'][$index] ?? '',
+            'error' => $upload['error'][$index] ?? UPLOAD_ERR_NO_FILE,
+            'size' => $upload['size'][$index] ?? 0,
+        ];
+    }
+
+    return $files;
+}
+
+function store_opportunity_uploads(array $upload): array
+{
+    $storedPaths = [];
     $allowed = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg'];
-
-    if ($extension === '' || !in_array($extension, $allowed, true)) {
-        throw new RuntimeException('Please upload a valid file (pdf, doc, docx, xls, xlsx, png, jpg, jpeg).');
-    }
-
     $maxSize = 10 * 1024 * 1024;
-    if (!empty($upload['size']) && $upload['size'] > $maxSize) {
-        throw new RuntimeException('Please upload a file smaller than 10MB.');
+
+    foreach (normalize_upload_batch($upload) as $file) {
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            continue;
+        }
+
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            throw new RuntimeException('Error uploading file.');
+        }
+
+        $originalName = basename((string) ($file['name'] ?? ''));
+        $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+
+        if ($extension === '' || !in_array($extension, $allowed, true)) {
+            throw new RuntimeException('Please upload a valid file (pdf, doc, docx, xls, xlsx, png, jpg, jpeg).');
+        }
+
+        if (!empty($file['size']) && $file['size'] > $maxSize) {
+            throw new RuntimeException('Please upload a file smaller than 10MB.');
+        }
+
+        if (!is_dir(OPPORTUNITY_UPLOAD_DIR)) {
+            mkdir(OPPORTUNITY_UPLOAD_DIR, 0755, true);
+        }
+
+        $fileName = bin2hex(random_bytes(12)) . '.' . $extension;
+        $targetPath = OPPORTUNITY_UPLOAD_DIR . '/' . $fileName;
+
+        if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+            throw new RuntimeException('Unable to save the uploaded file.');
+        }
+
+        $storedPaths[] = OPPORTUNITY_UPLOAD_PUBLIC_DIR . '/' . $fileName;
     }
 
-    if (!is_dir(OPPORTUNITY_UPLOAD_DIR)) {
-        mkdir(OPPORTUNITY_UPLOAD_DIR, 0755, true);
-    }
-
-    $fileName = bin2hex(random_bytes(12)) . '.' . $extension;
-    $targetPath = OPPORTUNITY_UPLOAD_DIR . '/' . $fileName;
-
-    if (!move_uploaded_file($upload['tmp_name'], $targetPath)) {
-        throw new RuntimeException('Unable to save the uploaded file.');
-    }
-
-    return OPPORTUNITY_UPLOAD_PUBLIC_DIR . '/' . $fileName;
+    return $storedPaths;
 }
 
 $submitted = [
@@ -120,11 +184,12 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Please choose an opportunity owner.');
             }
 
-            $uploadedPath = null;
+           $uploadedPaths = [];
             $upload = $_FILES['opportunity_file'] ?? null;
-            if ($upload && $upload['error'] !== UPLOAD_ERR_NO_FILE) {
-                $uploadedPath = store_opportunity_upload($upload);
+            if ($upload) {
+                $uploadedPaths = store_opportunity_uploads($upload);
             }
+            $storedFiles = serialize_opportunity_files($uploadedPaths);
 
             $duplicateCheck = $pdo->prepare(
                 "SELECT 1
@@ -134,7 +199,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                    AND client IS NOT DISTINCT FROM NULLIF(:client, '')
                    AND date_of_invitation IS NOT DISTINCT FROM NULLIF(:date_of_invitation, '')::date
                    AND submission_date IS NOT DISTINCT FROM NULLIF(:submission_date, '')::date
-                --    AND Approval_Status IS NOT DISTINCT FROM NULLIF(:approval_status, '')
+                   AND Approval_Status IS NOT DISTINCT FROM NULLIF(:approval_status, '')
                    AND contact_person_name IS NOT DISTINCT FROM NULLIF(:contact_person_name, '')
                    AND contact_person_title IS NOT DISTINCT FROM NULLIF(:contact_person_title, '')
                    AND contact_person_phone IS NOT DISTINCT FROM NULLIF(:contact_person_phone, '')
@@ -179,7 +244,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':remarks' => $submitted['remarks'],
                 ':business_line_id' => $submitted['business_line_id'],
                 ':opportunity_owner_id' => $submitted['opportunity_owner_id'],
-                ':opportunity_file' => $uploadedPath,
+                ':opportunity_file' => $storedFiles,
             ]);
 
             $newId = (int) $pdo->lastInsertId('business_development_business_dev_id_seq');
@@ -217,12 +282,21 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Please choose an opportunity owner.');
             }
 
-            $currentFile = trim($_POST['current_opportunity_file'] ?? '');
+           $currentFile = trim($_POST['current_opportunity_file'] ?? '');
             $upload = $_FILES['opportunity_file'] ?? null;
-            $uploadedPath = $currentFile;
-            if ($upload && $upload['error'] !== UPLOAD_ERR_NO_FILE) {
-                $uploadedPath = store_opportunity_upload($upload);
+            $currentFiles = normalize_opportunity_files($currentFile);
+            $uploadedPaths = [];
+            if ($upload) {
+                $uploadedPaths = store_opportunity_uploads($upload);
             }
+
+            if ($uploadedPaths !== []) {
+                $mergedFiles = array_values(array_unique(array_merge($currentFiles, $uploadedPaths)));
+                $uploadedPath = serialize_opportunity_files($mergedFiles);
+            } else {
+                $uploadedPath = serialize_opportunity_files($currentFiles);
+            }
+
 
             $stmt = $pdo->prepare(
                 "UPDATE business_development
@@ -711,7 +785,7 @@ if ($error === '' && !$canRead) {
                 <input type="hidden" name="filter_business_line_id" value="<?php echo safe($filters['business_line_id']); ?>" />
                 <input type="hidden" name="filter_opportunity_owner_id" value="<?php echo safe($filters['opportunity_owner_id']); ?>" />
                 <input type="hidden" name="visible_count" value="<?php echo safe((string) ($visibleCount + 4)); ?>" />
-                <button class="btn btn-neutral" type="submit">View more</button>
+                <button class="btn btn-update" type="submit">View more</button>
               </form>
             <?php endif; ?>
           </div>
@@ -826,8 +900,8 @@ if ($error === '' && !$canRead) {
               <tr>
                 <td colspan="2">
                   <div class="field">
-                    <label class="label" for="manage-opportunity-file">Upload/replace file</label>
-                    <input id="manage-opportunity-file" name="opportunity_file" type="file" />
+                     <label class="label" for="manage-opportunity-file">Upload/replace files</label>
+                    <input id="manage-opportunity-file" name="opportunity_file[]" type="file" multiple />
                     <small id="manage-current-file-link" style="color:var(--muted);"></small>
                   </div>
                 </td>
@@ -986,8 +1060,8 @@ if ($error === '' && !$canRead) {
               </select>
             </div>
             <div class="span-full">
-              <label class="label" for="opportunity-file">Attach file</label>
-              <input id="opportunity-file" name="opportunity_file" type="file" />
+              <label class="label" for="opportunity-file">Attach files</label>
+              <input id="opportunity-file" name="opportunity_file[]" type="file" multiple />
             </div>
           </div>
           <div class="actions" style="justify-content:flex-end; gap:10px;">
@@ -1012,7 +1086,24 @@ if ($error === '' && !$canRead) {
       const manageCurrentFileLink = document.getElementById('manage-current-file-link');
       const deleteBusinessDevId = document.getElementById('delete-business-dev-id');
 
-      const hideModal = (modal) => {
+      const parseFiles = (value) => {
+        if (!value) return [];
+        try {
+          const parsed = JSON.parse(value);
+          if (Array.isArray(parsed)) {
+            return parsed.filter((entry) => entry);
+          }
+        } catch (error) {
+          // Not JSON, fall back to single entry.
+        }
+        return value ? [value] : [];
+      };
+
+      const buildFileLinks = (files) => {
+        return files
+          .map((file, index) => `<a href="${file}" target="_blank" rel="noopener">File ${index + 1}</a>`)
+          .join('<br>');
+      };      const hideModal = (modal) => {
         if (modal) {
           modal.classList.remove('is-visible');
         }
@@ -1090,18 +1181,18 @@ if ($error === '' && !$canRead) {
             }
           }
 
-          if (manageCurrentFile) {
+           if (manageCurrentFile) {
             manageCurrentFile.value = data.opportunityFile || '';
           }
 
           if (manageCurrentFileLink) {
-            if (data.opportunityFile) {
-              manageCurrentFileLink.innerHTML = `<a href="${data.opportunityFile}" target="_blank" rel="noopener">View current file</a>`;
+            const files = parseFiles(data.opportunityFile);
+            if (files.length) {
+              manageCurrentFileLink.innerHTML = buildFileLinks(files);
             } else {
-              manageCurrentFileLink.textContent = 'No file uploaded yet.';
+              manageCurrentFileLink.textContent = 'No files uploaded yet.';
             }
           }
-
           if (deleteBusinessDevId) {
             deleteBusinessDevId.value = data.opportunityId || '';
           }
@@ -1135,8 +1226,9 @@ if ($error === '' && !$canRead) {
             const target = detailsModal?.querySelector(`[data-detail="${key}"]`);
             if (!target) return;
             if (key === 'opportunity_file') {
-              if (value) {
-                target.innerHTML = `<a href="${value}" target="_blank" rel="noopener">View or download file</a>`;
+              const files = parseFiles(value);
+              if (files.length) {
+                target.innerHTML = buildFileLinks(files);
               } else {
                 target.textContent = '—';
               }
