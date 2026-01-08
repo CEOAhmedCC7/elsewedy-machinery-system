@@ -64,6 +64,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'create' => 'create',
             'update' => 'update',
             'delete' => 'delete',
+            'bulk_delete' => 'delete',
         ]
     );
 
@@ -217,6 +218,16 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $success = 'Opportunity deleted successfully.';
             $submitted = array_map(static fn () => '', $submitted);
+        } elseif ($action === 'bulk_delete') {
+            $selectedIds = array_map('intval', (array) ($_POST['selected_ids'] ?? []));
+            if (!$selectedIds) {
+                throw new RuntimeException('Select at least one opportunity to delete.');
+            }
+
+            $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+            $stmt = $pdo->prepare("DELETE FROM business_development WHERE business_dev_id IN ({$placeholders})");
+            $stmt->execute($selectedIds);
+            $success = $stmt->rowCount() . ' opportunity(s) removed.';
         }
     } catch (Throwable $e) {
         $error = format_db_error($e, 'business_development table');
@@ -316,9 +327,44 @@ if ($error === '' && !$canRead) {
     }
 
     .opportunity-card__footer .btn,
-    .opportunity-card__footer a.btn {
+     .opportunity-card__footer a.btn {
       flex: 1;
       text-align: center;
+    }
+
+    .opportunity-card__select {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      border-radius: 10px;
+    }
+
+    .opportunity-card__select input[type="checkbox"] {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid #fff;
+      border-radius: 6px;
+      background: transparent;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+    }
+
+    .opportunity-card__select input[type="checkbox"]:checked {
+      background: var(--secondary);
+      border-color: var(--secondary);
+      box-shadow: inset 0 0 0 2px #ffffffff;
+    }
+
+    .opportunity-card__select input[type="checkbox"]:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 2px;
     }
 
     .opportunity-flag {
@@ -517,7 +563,16 @@ if ($error === '' && !$canRead) {
       <?php endif; ?>
 
       <?php if ($canRead): ?>
-        <div class="opportunity-grid">
+        <?php if ($canDelete): ?>
+          <form method="POST" action="business-development.php" onsubmit="return confirm('Delete selected opportunities?');" style="display:grid; gap:12px;">
+            <input type="hidden" name="action" value="bulk_delete" />
+            <div class="actions" style="justify-content:flex-end; gap:10px;">
+              <button class="btn btn-delete" type="submit">Delete selected</button>
+            </div>
+            <div class="opportunity-grid">
+        <?php else: ?>
+          <div class="opportunity-grid">
+        <?php endif; ?>
           <?php foreach ($opportunities as $opportunity): ?>
             <?php
               $businessLineName = $opportunity['business_line_name'] ?: 'Business line not set';
@@ -528,6 +583,11 @@ if ($error === '' && !$canRead) {
               <span class="opportunity-flag <?php echo safe($flagClass); ?>" aria-label="Submission status">
                 <?php echo safe($flagLabel); ?>
               </span>
+              <?php if ($canDelete): ?>
+                <label class="opportunity-card__select" title="Select opportunity" aria-label="Select opportunity">
+                  <input type="checkbox" name="selected_ids[]" value="<?php echo safe($opportunity['business_dev_id']); ?>" />
+                </label>
+              <?php endif; ?>
               <div class="module-card__body" style="display:grid; gap:6px; align-content:start;">
                 <h4><?php echo safe($opportunity['project_name']); ?></h4>
                 <p><small>Client: <?php echo safe($opportunity['client'] ?: '—'); ?> | Business line: <?php echo safe($businessLineName); ?></small></p>
@@ -539,12 +599,21 @@ if ($error === '' && !$canRead) {
                 <?php endif; ?>
                 <button class="btn btn-neutral" type="button" data-open-details="<?php echo safe($opportunity['business_dev_id']); ?>">View details</button>
               </div>
-            </div>
+             </div>
           <?php endforeach; ?>
-        </div>
+        <?php if ($canDelete): ?>
+            </div>
+          </form>
+        <?php else: ?>
+          </div>
+        <?php endif; ?>
       <?php endif; ?>
 
       <?php foreach ($opportunities as $opportunity): ?>
+        <?php
+          $currentBusinessLine = (string) ($opportunity['business_line_id'] ?? '');
+          $currentOpportunityOwner = (string) ($opportunity['opportunity_owner_id'] ?? '');
+        ?>
         <div class="message-modal project-modal" data-manage-modal="<?php echo safe($opportunity['business_dev_id']); ?>" role="dialog" aria-modal="true" aria-label="Manage opportunity <?php echo safe($opportunity['project_name']); ?>">
           <div class="message-dialog">
             <div class="message-dialog__header">
@@ -621,27 +690,27 @@ if ($error === '' && !$canRead) {
                 </tr>
                 <tr>
                   <td>
-                    <div class="field">
-                      <label class="label" for="business-line-<?php echo safe($opportunity['business_dev_id']); ?>">Business Line</label>
-                      <select id="business-line-<?php echo safe($opportunity['business_dev_id']); ?>" name="business_line_id" required>
-                        <option value="">-- Select Business Line --</option>
-                        <?php foreach ($businessLineOptions as $option): ?>
-                          <option value="<?php echo safe($option['value']); ?>" <?php echo $opportunity['business_line_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-                        <?php endforeach; ?>
-                      </select>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field">
-                      <label class="label" for="owner-<?php echo safe($opportunity['business_dev_id']); ?>">Opportunity Owner</label>
-                      <select id="owner-<?php echo safe($opportunity['business_dev_id']); ?>" name="opportunity_owner_id" required>
-                        <option value="">-- Select Opportunity Owner --</option>
-                        <?php foreach ($opportunityOwnerOptions as $option): ?>
-                          <option value="<?php echo safe($option['value']); ?>" <?php echo $opportunity['opportunity_owner_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-                        <?php endforeach; ?>
-                      </select>
-                    </div>
-                  </td>
+                    <div class="field"> 
+                      <label class="label" for="business-line-<?php echo safe($opportunity['business_dev_id']); ?>">Business Line</label> 
+                      <select id="business-line-<?php echo safe($opportunity['business_dev_id']); ?>" name="business_line_id" required> 
+                        <option value="">-- Select Business Line --</option> 
+                        <?php foreach ($businessLineOptions as $option): ?> 
+                          <option value="<?php echo safe($option['value']); ?>" <?php echo $currentBusinessLine === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+                        <?php endforeach; ?> 
+                      </select> 
+                    </div> 
+                  </td> 
+                  <td> 
+                    <div class="field"> 
+                      <label class="label" for="owner-<?php echo safe($opportunity['business_dev_id']); ?>">Opportunity Owner</label> 
+                      <select id="owner-<?php echo safe($opportunity['business_dev_id']); ?>" name="opportunity_owner_id" required> 
+                        <option value="">-- Select Opportunity Owner --</option> 
+                        <?php foreach ($opportunityOwnerOptions as $option): ?> 
+                          <option value="<?php echo safe($option['value']); ?>" <?php echo $currentOpportunityOwner === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+                        <?php endforeach; ?> 
+                      </select> 
+                    </div> 
+                  </td> 
                 </tr>
               </table>
             </form>
