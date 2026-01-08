@@ -141,6 +141,13 @@ function store_opportunity_uploads(array $upload): array
     return $storedPaths;
 }
 
+$rawBusinessLineIds = $_POST['business_line_id'] ?? '';
+$submittedBusinessLineIds = [];
+if (is_array($rawBusinessLineIds)) {
+    $submittedBusinessLineIds = array_values(array_unique(array_filter(array_map('trim', $rawBusinessLineIds), 'strlen')));
+    $rawBusinessLineIds = '';
+}
+
 $submitted = [
     'business_dev_id' => trim($_POST['business_dev_id'] ?? ''),
     'project_name' => trim($_POST['project_name'] ?? ''),
@@ -153,7 +160,7 @@ $submitted = [
     'contact_person_title' => trim($_POST['contact_person_title'] ?? ''),
     'contact_person_phone' => trim($_POST['contact_person_phone'] ?? ''),
     'remarks' => trim($_POST['remarks'] ?? ''),
-    'business_line_id' => trim($_POST['business_line_id'] ?? ''),
+    'business_line_id' => trim((string) $rawBusinessLineIds),
     'opportunity_owner_id' => trim($_POST['opportunity_owner_id'] ?? ''),
 ];
 $selectedApprovalStatus = $submitted['approvalstatus'] !== '' ? $submitted['approvalstatus'] : $defaultApprovalStatus;
@@ -180,7 +187,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($submitted['project_name'] === '') {
                 throw new RuntimeException('Project name is required.');
             }
-            if ($submitted['business_line_id'] === '') {
+            if ($submittedBusinessLineIds === []) {
                 throw new RuntimeException('Please choose a business line.');
             }
             if ($submitted['opportunity_owner_id'] === '') {
@@ -194,7 +201,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $storedFiles = serialize_opportunity_files($uploadedPaths);
 
-            $duplicateCheck = $pdo->prepare(
+           $duplicateCheck = $pdo->prepare(
                 "SELECT 1
                  FROM business_development
                  WHERE project_name = :project_name
@@ -211,46 +218,64 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                    AND opportunity_owner_id = :opportunity_owner_id
                  LIMIT 1"
             );
-            $duplicateCheck->execute([
-                ':project_name' => $submitted['project_name'],
-                ':location' => $submitted['location'],
-                ':client' => $submitted['client'],
-                ':date_of_invitation' => $submitted['date_of_invitation'],
-                ':submission_date' => $submitted['submission_date'],
-                ':approvalstatus' => $submitted['approvalstatus'],
-                ':contact_person_name' => $submitted['contact_person_name'],
-                ':contact_person_title' => $submitted['contact_person_title'],
-                ':contact_person_phone' => $submitted['contact_person_phone'],
-                ':remarks' => $submitted['remarks'],
-                ':business_line_id' => $submitted['business_line_id'],
-                ':opportunity_owner_id' => $submitted['opportunity_owner_id'],
-            ]);
 
-            if ($duplicateCheck->fetchColumn()) {
-                throw new RuntimeException('This opportunity already exists with the same data.');
+            $duplicateLines = [];
+            foreach ($submittedBusinessLineIds as $businessLineId) {
+                $duplicateCheck->execute([
+                    ':project_name' => $submitted['project_name'],
+                    ':location' => $submitted['location'],
+                    ':client' => $submitted['client'],
+                    ':date_of_invitation' => $submitted['date_of_invitation'],
+                    ':submission_date' => $submitted['submission_date'],
+                    ':approvalstatus' => $submitted['approvalstatus'],
+                    ':contact_person_name' => $submitted['contact_person_name'],
+                    ':contact_person_title' => $submitted['contact_person_title'],
+                    ':contact_person_phone' => $submitted['contact_person_phone'],
+                    ':remarks' => $submitted['remarks'],
+                    ':business_line_id' => $businessLineId,
+                    ':opportunity_owner_id' => $submitted['opportunity_owner_id'],
+                ]);
+
+                if ($duplicateCheck->fetchColumn()) {
+                    $duplicateLines[] = option_label($businessLineOptions, $businessLineId);
+                }
+            }
+
+            if ($duplicateLines !== []) {
+                throw new RuntimeException('This opportunity already exists for: ' . implode(', ', $duplicateLines) . '.');
             }
 
             $stmt = $pdo->prepare(
                 "INSERT INTO business_development (project_name, location, client, date_of_invitation, submission_date, \"approvalstatus\", contact_person_name, contact_person_title, contact_person_phone, remarks, business_line_id, opportunity_owner_id, opportunity_file)
                  VALUES (:project_name, NULLIF(:location, ''), NULLIF(:client, ''), NULLIF(:date_of_invitation, '')::date, NULLIF(:submission_date, '')::date, NULLIF(:approvalstatus, ''), NULLIF(:contact_person_name, ''), NULLIF(:contact_person_title, ''), NULLIF(:contact_person_phone, ''), NULLIF(:remarks, ''), :business_line_id, :opportunity_owner_id, NULLIF(:opportunity_file, ''))"
             );
-            $stmt->execute([
-                ':project_name' => $submitted['project_name'],
-                ':location' => $submitted['location'],
-                ':client' => $submitted['client'],
-                ':date_of_invitation' => $submitted['date_of_invitation'],
-                ':submission_date' => $submitted['submission_date'],
-                ':approvalstatus' => $submitted['approvalstatus'],
-                ':contact_person_name' => $submitted['contact_person_name'],
-                ':contact_person_title' => $submitted['contact_person_title'],
-                ':contact_person_phone' => $submitted['contact_person_phone'],
-                ':remarks' => $submitted['remarks'],
-                ':business_line_id' => $submitted['business_line_id'],
-                ':opportunity_owner_id' => $submitted['opportunity_owner_id'],
-                ':opportunity_file' => $storedFiles,
-            ]);
 
-            $newId = (int) $pdo->lastInsertId('business_development_business_dev_id_seq');
+            $pdo->beginTransaction();
+            $newIds = [];
+            foreach ($submittedBusinessLineIds as $businessLineId) {
+                $stmt->execute([
+                    ':project_name' => $submitted['project_name'],
+                    ':location' => $submitted['location'],
+                    ':client' => $submitted['client'],
+                    ':date_of_invitation' => $submitted['date_of_invitation'],
+                    ':submission_date' => $submitted['submission_date'],
+                    ':approvalstatus' => $submitted['approvalstatus'],
+                    ':contact_person_name' => $submitted['contact_person_name'],
+                    ':contact_person_title' => $submitted['contact_person_title'],
+                    ':contact_person_phone' => $submitted['contact_person_phone'],
+                    ':remarks' => $submitted['remarks'],
+                    ':business_line_id' => $businessLineId,
+                    ':opportunity_owner_id' => $submitted['opportunity_owner_id'],
+                    ':opportunity_file' => $storedFiles,
+                ]);
+                $newIds[] = (int) $pdo->lastInsertId('business_development_business_dev_id_seq');
+            }
+            $pdo->commit();
+
+            $businessLineNames = array_map(
+                static fn ($lineId) => option_label($businessLineOptions, $lineId),
+                $submittedBusinessLineIds
+            );
              $successDetails = [
                 'Project name' => $submitted['project_name'],
                 'Location' => $submitted['location'] ?: '—',
@@ -259,7 +284,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'Submission date' => $submitted['submission_date'] ?: '—',
                 'Approval status' => $submitted['approvalstatus'] ?: '—',
                 'Contact' => $submitted['contact_person_name'] ?: '—',
-                'Business line' => option_label($businessLineOptions, $submitted['business_line_id']),
+                'Business lines' => $businessLineNames ? implode(', ', $businessLineNames) : '—',
                 'Opportunity owner' => option_label($opportunityOwnerOptions, $submitted['opportunity_owner_id']),
             ];
 
@@ -268,9 +293,11 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $successRows .= '<tr><th>' . safe($label) . '</th><td>' . safe($value) . '</td></tr>';
             }
 
-            $success = 'Opportunity created successfully (ID #' . $newId . ').';
+            $idList = $newIds ? implode(', ', $newIds) : '—';
+            $success = 'Opportunity created successfully (ID #' . $idList . ').';
             $successHtml = $success . '<div class="message-table__wrapper"><table class="message-table">' . $successRows . '</table></div>';
             $submitted = array_map(static fn () => '', $submitted);
+            $submittedBusinessLineIds = [];
         } elseif ($action === 'update') {
             if ($submitted['business_dev_id'] === '') {
                 throw new RuntimeException('Load an opportunity before updating.');
@@ -366,6 +393,9 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $success = $stmt->rowCount() . ' opportunity(s) removed.';
         }
     } catch (Throwable $e) {
+        if ($pdo && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         $error = format_db_error($e, 'business_development table');
     }
 }
@@ -1060,13 +1090,14 @@ if ($error === '' && !$canRead) {
               <input id="remarks" name="remarks" type="text" placeholder="Notes" value="<?php echo safe($submitted['remarks']); ?>" />
             </div>
             <div>
-              <label class="label" for="business-line">Business Line</label>
-              <select id="business-line" name="business_line_id" required>
-                <option value="">-- Select Business Line --</option>
+              <label class="label" for="business-line">Business Line(s)</label>
+              <select id="business-line" name="business_line_id[]" multiple required>
+                <option value="">-- Select Business Line(s) --</option>
                 <?php foreach ($businessLineOptions as $option): ?>
-                  <option value="<?php echo safe($option['value']); ?>" <?php echo $submitted['business_line_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+                  <option value="<?php echo safe($option['value']); ?>" <?php echo in_array($option['value'], $submittedBusinessLineIds, true) ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
                 <?php endforeach; ?>
               </select>
+              <small style="color:var(--muted);">Hold Ctrl (Windows) or Cmd (Mac) to select multiple.</small>
             </div>
             <div>
               <label class="label" for="opportunity-owner">Opportunity Owner</label>
