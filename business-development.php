@@ -3,6 +3,11 @@ require_once __DIR__ . '/helpers.php';
 
 $currentUser = require_login();
 $moduleCode = resolve_module_code('BUSINESS_DEVELOPMENT');
+$resolvedModuleCode = $moduleCode ?? 'BUSINESS_DEVELOPMENT';
+$canCreate = has_crud_permission($currentUser, $resolvedModuleCode, 'create');
+$canRead = has_crud_permission($currentUser, $resolvedModuleCode, 'read');
+$canUpdate = has_crud_permission($currentUser, $resolvedModuleCode, 'update');
+$canDelete = has_crud_permission($currentUser, $resolvedModuleCode, 'delete');
 
 $error = '';
 $success = '';
@@ -39,8 +44,6 @@ $submitted = [
     'project_name' => trim($_POST['project_name'] ?? ''),
     'location' => trim($_POST['location'] ?? ''),
     'client' => trim($_POST['client'] ?? ''),
-    'consultant' => trim($_POST['consultant'] ?? ''),
-    'status' => trim($_POST['status'] ?? ''),
     'date_of_invitation' => trim($_POST['date_of_invitation'] ?? ''),
     'submission_date' => trim($_POST['submission_date'] ?? ''),
     'contact_person_name' => trim($_POST['contact_person_name'] ?? ''),
@@ -55,7 +58,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $permissionError = enforce_action_permission(
         $currentUser,
-        $moduleCode ?? 'BUSINESS_DEVELOPMENT',
+        $resolvedModuleCode,
         $action,
         [
             'create' => 'create',
@@ -80,15 +83,13 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $stmt = $pdo->prepare(
-                "INSERT INTO business_development (project_name, location, client, consultant, status, date_of_invitation, submission_date, contact_person_name, contact_person_title, contact_person_phone, remarks, business_line_id, opportunity_owner_id)
-                 VALUES (:project_name, NULLIF(:location, ''), NULLIF(:client, ''), NULLIF(:consultant, ''), NULLIF(:status, ''), NULLIF(:date_of_invitation, '')::date, NULLIF(:submission_date, '')::date, NULLIF(:contact_person_name, ''), NULLIF(:contact_person_title, ''), NULLIF(:contact_person_phone, ''), NULLIF(:remarks, ''), :business_line_id, :opportunity_owner_id)"
+                "INSERT INTO business_development (project_name, location, client, date_of_invitation, submission_date, contact_person_name, contact_person_title, contact_person_phone, remarks, business_line_id, opportunity_owner_id)
+                 VALUES (:project_name, NULLIF(:location, ''), NULLIF(:client, ''), NULLIF(:date_of_invitation, '')::date, NULLIF(:submission_date, '')::date, NULLIF(:contact_person_name, ''), NULLIF(:contact_person_title, ''), NULLIF(:contact_person_phone, ''), NULLIF(:remarks, ''), :business_line_id, :opportunity_owner_id)"
             );
             $stmt->execute([
                 ':project_name' => $submitted['project_name'],
                 ':location' => $submitted['location'],
                 ':client' => $submitted['client'],
-                ':consultant' => $submitted['consultant'],
-                ':status' => $submitted['status'],
                 ':date_of_invitation' => $submitted['date_of_invitation'],
                 ':submission_date' => $submitted['submission_date'],
                 ':contact_person_name' => $submitted['contact_person_name'],
@@ -100,12 +101,10 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             $newId = (int) $pdo->lastInsertId('business_development_business_dev_id_seq');
-            $successDetails = [
+             $successDetails = [
                 'Project name' => $submitted['project_name'],
                 'Location' => $submitted['location'] ?: '—',
                 'Client' => $submitted['client'] ?: '—',
-                'Consultant' => $submitted['consultant'] ?: '—',
-                'Status' => $submitted['status'] ?: '—',
                 'Invitation date' => $submitted['date_of_invitation'] ?: '—',
                 'Submission date' => $submitted['submission_date'] ?: '—',
                 'Contact' => $submitted['contact_person_name'] ?: '—',
@@ -140,8 +139,6 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                  SET project_name = :project_name,
                      location = NULLIF(:location, ''),
                      client = NULLIF(:client, ''),
-                     consultant = NULLIF(:consultant, ''),
-                      status = COALESCE(NULLIF(:status, ''), status),
                      date_of_invitation = NULLIF(:date_of_invitation, '')::date,
                      submission_date = NULLIF(:submission_date, '')::date,
                      contact_person_name = NULLIF(:contact_person_name, ''),
@@ -157,8 +154,6 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':project_name' => $submitted['project_name'],
                 ':location' => $submitted['location'],
                 ':client' => $submitted['client'],
-                ':consultant' => $submitted['consultant'],
-                ':status' => $submitted['status'],
                 ':date_of_invitation' => $submitted['date_of_invitation'],
                 ':submission_date' => $submitted['submission_date'],
                 ':contact_person_name' => $submitted['contact_person_name'],
@@ -201,7 +196,7 @@ $filters = [
 
 $opportunities = [];
 
-if ($pdo) {
+if ($pdo && $canRead) {
     try {
         $conditions = [];
         $params = [];
@@ -216,7 +211,7 @@ if ($pdo) {
         }
 
         $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
-        $sql = "SELECT bd.business_dev_id, bd.project_name, bd.location, bd.client, bd.consultant, bd.status, bd.date_of_invitation, bd.submission_date, bd.contact_person_name, bd.contact_person_title, bd.contact_person_phone, bd.remarks, bd.business_line_id, bd.opportunity_owner_id,
+        $sql = "SELECT bd.business_dev_id, bd.project_name, bd.location, bd.client, bd.date_of_invitation, bd.submission_date, bd.contact_person_name, bd.contact_person_title, bd.contact_person_phone, bd.remarks, bd.business_line_id, bd.opportunity_owner_id,
                        COALESCE(bl.business_line_name, '') AS business_line_name,
                        COALESCE(oo.opportunity_owner_name, '') AS opportunity_owner_name
                 FROM business_development bd
@@ -227,9 +222,14 @@ if ($pdo) {
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $opportunities = $stmt->fetchAll();
-    } catch (Throwable $e) {
+     } catch (Throwable $e) {
         $error = $error ?: format_db_error($e, 'business_development table');
     }
+}
+
+if ($error === '' && !$canRead) {
+    $modalOverride = permission_denied_modal();
+    $error = "You don't have permission to read this module.";
 }
 ?>
 <!DOCTYPE html>
@@ -287,24 +287,11 @@ if ($pdo) {
       text-align: center;
     }
 
-    .opportunity-status {
-      position: absolute;
-      height: 35px;
-      top: 10px;
-      left: 10px;
-      right: auto;
-      border-radius: 6px;
-      background: var(--secondary);
-      padding: 6px 10px;
-      min-width: 80px;
-      text-align: center;
-    }
-
     .opportunity-flag {
       position: absolute;
       top: 10px;
-      right: 10px;
-      border-radius: 999px;
+      left: 10px;
+      border-radius: 0 0 8px 0;
       padding: 6px 10px;
       font-size: 12px;
       font-weight: 600;
@@ -433,68 +420,72 @@ if ($pdo) {
           <p style="margin:6px 0 0; color:var(--muted);">Use the create button to add opportunities, then manage or review them from the cards below.</p>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <button class="btn btn-save" type="button" data-open-create style="white-space:nowrap;">Create opportunity</button>
+          <?php if ($canCreate): ?>
+            <button class="btn btn-save" type="button" data-open-create style="white-space:nowrap;">Create opportunity</button>
+          <?php endif; ?>
           <a class="btn btn-update" href="<?php echo safe($metabaseUrl); ?>" target="_blank" rel="noopener" style="white-space:nowrap; text-decoration:none;">Dashboard</a>
         </div>
       </div>
-      <form method="GET" action="business-development.php" class="filter-form" style="display:grid; gap:10px;">
-        <div class="form-row" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
-          <div style="flex:1; min-width:200px;">
-            <label class="label" for="filter_business_line_id">Business Line</label>
-            <select id="filter_business_line_id" name="filter_business_line_id">
-              <option value="">All business lines</option>
-              <?php foreach ($businessLineOptions as $option): ?>
-                <option value="<?php echo safe($option['value']); ?>" <?php echo $filters['business_line_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-              <?php endforeach; ?>
-            </select>
+      <?php if ($canRead): ?>
+        <form method="GET" action="business-development.php" class="filter-form" style="display:grid; gap:10px;">
+          <div class="form-row" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+            <div style="flex:1; min-width:200px;">
+              <label class="label" for="filter_business_line_id">Business Line</label>
+              <select id="filter_business_line_id" name="filter_business_line_id">
+                <option value="">All business lines</option>
+                <?php foreach ($businessLineOptions as $option): ?>
+                  <option value="<?php echo safe($option['value']); ?>" <?php echo $filters['business_line_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div style="flex:1; min-width:220px;">
+              <label class="label" for="filter_opportunity_owner_id">Opportunity Owner</label>
+              <select id="filter_opportunity_owner_id" name="filter_opportunity_owner_id">
+                <option value="">All opportunity owners</option>
+                <?php foreach ($opportunityOwnerOptions as $option): ?>
+                  <option value="<?php echo safe($option['value']); ?>" <?php echo $filters['opportunity_owner_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
           </div>
-          <div style="flex:1; min-width:220px;">
-            <label class="label" for="filter_opportunity_owner_id">Opportunity Owner</label>
-            <select id="filter_opportunity_owner_id" name="filter_opportunity_owner_id">
-              <option value="">All opportunity owners</option>
-              <?php foreach ($opportunityOwnerOptions as $option): ?>
-                <option value="<?php echo safe($option['value']); ?>" <?php echo $filters['opportunity_owner_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-              <?php endforeach; ?>
-            </select>
+          <div class="actions" style="justify-content:flex-start; gap:10px;">
+            <button class="btn btn-update" type="submit">Apply Filters</button>
+            <a class="btn btn-delete" href="business-development.php" style="text-decoration:none;">Reset</a>
           </div>
-        </div>
-        <div class="actions" style="justify-content:flex-start; gap:10px;">
-          <button class="btn btn-update" type="submit">Apply Filters</button>
-          <a class="btn btn-delete" href="business-development.php" style="text-decoration:none;">Reset</a>
-        </div>
-      </form>
+        </form>
+      <?php endif; ?>
 
-      <?php if (!$opportunities): ?>
+      <?php if ($canRead && !$opportunities): ?>
         <div class="empty-state">No opportunities recorded yet. Use the Create opportunity button to add one.</div>
       <?php endif; ?>
 
-      <div class="opportunity-grid">
-        <?php foreach ($opportunities as $opportunity): ?>
-          <?php
-            $businessLineName = $opportunity['business_line_name'] ?: 'Business line not set';
-            $flagClass = $opportunity['submission_date'] ? 'is-submitted' : 'is-missing';
-            $flagLabel = $opportunity['submission_date'] ? 'Submitted' : 'No submission';
-          ?>
-          <div class="module-card module-card--no-image opportunity-card" tabindex="0">
-            <span class="module-card__status opportunity-status" aria-label="Business line">
-              <?php echo safe($businessLineName); ?>
-            </span>
-            <span class="opportunity-flag <?php echo safe($flagClass); ?>" aria-label="Submission status">
-              <?php echo safe($flagLabel); ?>
-            </span>
-            <div class="module-card__body" style="display:grid; gap:6px; align-content:start;">
-              <h4><?php echo safe($opportunity['project_name']); ?></h4>
-              <p><small>Client: <?php echo safe($opportunity['client'] ?: '—'); ?> | Location: <?php echo safe($opportunity['location'] ?: '—'); ?></small></p>
-              <p><small>Owner: <?php echo safe($opportunity['opportunity_owner_name'] ?: $opportunity['opportunity_owner_id'] ?: '—'); ?></small></p>
-              <p><small>Status: <?php echo safe($opportunity['status'] ?: '—'); ?></small></p>
+      <?php if ($canRead): ?>
+        <div class="opportunity-grid">
+          <?php foreach ($opportunities as $opportunity): ?>
+            <?php
+              $businessLineName = $opportunity['business_line_name'] ?: 'Business line not set';
+              $flagClass = $opportunity['submission_date'] ? 'is-submitted' : 'is-missing';
+              $flagLabel = $opportunity['submission_date'] ? 'Submitted' : 'Pending';
+            ?>
+            <div class="module-card module-card--no-image opportunity-card" tabindex="0">
+              <span class="opportunity-flag <?php echo safe($flagClass); ?>" aria-label="Submission status">
+                <?php echo safe($flagLabel); ?>
+              </span>
+              <div class="module-card__body" style="display:grid; gap:6px; align-content:start;">
+                <h4><?php echo safe($opportunity['project_name']); ?></h4>
+                <p><small>Client: <?php echo safe($opportunity['client'] ?: '—'); ?> | Business line: <?php echo safe($businessLineName); ?></small></p>
+                <p><small>Owner: <?php echo safe($opportunity['opportunity_owner_name'] ?: $opportunity['opportunity_owner_id'] ?: '—'); ?></small></p>
+              </div>
+              <div class="opportunity-card__footer">
+                <?php if ($canUpdate): ?>
+                  <button class="btn btn-update" type="button" data-open-manage="<?php echo safe($opportunity['business_dev_id']); ?>">Manage</button>
+                <?php endif; ?>
+                <button class="btn btn-neutral" type="button" data-open-details="<?php echo safe($opportunity['business_dev_id']); ?>">View details</button>
+              </div>
             </div>
-            <div class="opportunity-card__footer">
-              <button class="btn btn-update" type="button" data-open-manage="<?php echo safe($opportunity['business_dev_id']); ?>">Manage</button>
-              <button class="btn btn-neutral" type="button" data-open-details="<?php echo safe($opportunity['business_dev_id']); ?>">View details</button>
-            </div>
-          </div>
-        <?php endforeach; ?>
-      </div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
 
       <?php foreach ($opportunities as $opportunity): ?>
         <div class="message-modal project-modal" data-manage-modal="<?php echo safe($opportunity['business_dev_id']); ?>" role="dialog" aria-modal="true" aria-label="Manage opportunity <?php echo safe($opportunity['project_name']); ?>">
@@ -515,19 +506,13 @@ if ($pdo) {
                   <label class="label" for="location-<?php echo safe($opportunity['business_dev_id']); ?>">Location</label>
                   <input id="location-<?php echo safe($opportunity['business_dev_id']); ?>" name="location" type="text" value="<?php echo safe($opportunity['location']); ?>" />
                 </div>
-                <div>
+                 <div>
                   <label class="label" for="client-<?php echo safe($opportunity['business_dev_id']); ?>">Client</label>
                   <input id="client-<?php echo safe($opportunity['business_dev_id']); ?>" name="client" type="text" value="<?php echo safe($opportunity['client']); ?>" />
                 </div>
                 <div>
-                  <label class="label" for="consultant-<?php echo safe($opportunity['business_dev_id']); ?>">Consultant</label>
-                  <input id="consultant-<?php echo safe($opportunity['business_dev_id']); ?>" name="consultant" type="text" value="<?php echo safe($opportunity['consultant']); ?>" />
-                </div>
-            
-                <div>
                   <label class="label" for="invitation-<?php echo safe($opportunity['business_dev_id']); ?>">Date of Invitation</label>
                   <input id="invitation-<?php echo safe($opportunity['business_dev_id']); ?>" name="date_of_invitation" type="date" value="<?php echo safe($opportunity['date_of_invitation']); ?>" />
-                </div>
                 <div>
                   <label class="label" for="submission-<?php echo safe($opportunity['business_dev_id']); ?>">Submission Date</label>
                   <input id="submission-<?php echo safe($opportunity['business_dev_id']); ?>" name="submission_date" type="date" value="<?php echo safe($opportunity['submission_date']); ?>" />
@@ -567,15 +552,20 @@ if ($pdo) {
                   </select>
                 </div>
               </div>
+               </div>
               <div class="actions" style="justify-content:flex-end; gap:10px;">
-                <button class="btn btn-update" type="submit">Update opportunity</button>
+                <?php if ($canUpdate): ?>
+                  <button class="btn btn-update" type="submit">Update opportunity</button>
+                <?php endif; ?>
               </div>
             </form>
-            <form method="POST" action="business-development.php" onsubmit="return confirm('Delete this opportunity?');" style="display:flex; justify-content:flex-end;">
-              <input type="hidden" name="action" value="delete" />
-              <input type="hidden" name="business_dev_id" value="<?php echo safe($opportunity['business_dev_id']); ?>" />
-              <button class="btn btn-delete" type="submit">Delete opportunity</button>
-            </form>
+            <?php if ($canDelete): ?>
+              <form method="POST" action="business-development.php" onsubmit="return confirm('Delete this opportunity?');" style="display:flex; justify-content:flex-end;">
+                <input type="hidden" name="action" value="delete" />
+                <input type="hidden" name="business_dev_id" value="<?php echo safe($opportunity['business_dev_id']); ?>" />
+                <button class="btn btn-delete" type="submit">Delete opportunity</button>
+              </form>
+            <?php endif; ?>
           </div>
         </div>
 
@@ -602,17 +592,9 @@ if ($pdo) {
                 <h5>Client</h5>
                 <p><?php echo safe($opportunity['client'] ?: '—'); ?></p>
               </div>
-              <div class="details-grid__item">
+               <div class="details-grid__item">
                 <h5>Location</h5>
                 <p><?php echo safe($opportunity['location'] ?: '—'); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Consultant</h5>
-                <p><?php echo safe($opportunity['consultant'] ?: '—'); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Status</h5>
-                <p><?php echo safe($opportunity['status'] ?: '—'); ?></p>
               </div>
               <div class="details-grid__item">
                 <h5>Date of invitation</h5>
@@ -645,82 +627,80 @@ if ($pdo) {
     </div>
   </main>
 
-  <div class="message-modal project-modal" id="create-opportunity-modal" role="dialog" aria-modal="true" aria-label="Create opportunity">
-    <div class="message-dialog">
-      <div class="message-dialog__header">
-        <span class="message-title">Create a new opportunity</span>
-        <button class="message-close" type="button" aria-label="Close create opportunity" data-close-modal>&times;</button>
+   <?php if ($canCreate): ?>
+    <div class="message-modal project-modal" id="create-opportunity-modal" role="dialog" aria-modal="true" aria-label="Create opportunity">
+      <div class="message-dialog">
+        <div class="message-dialog__header">
+          <span class="message-title">Create a new opportunity</span>
+          <button class="message-close" type="button" aria-label="Close create opportunity" data-close-modal>&times;</button>
+        </div>
+        <form method="POST" action="business-development.php" style="display:grid; gap:12px;">
+          <input type="hidden" name="action" value="create" />
+          <div class="opportunity-form-grid">
+            <div>
+              <label class="label" for="project-name">Project Name</label>
+              <input id="project-name" name="project_name" type="text" placeholder="New Opportunity" value="<?php echo safe($submitted['project_name']); ?>" required />
+            </div>
+            <div>
+              <label class="label" for="location">Location</label>
+              <input id="location" name="location" type="text" placeholder="Cairo" value="<?php echo safe($submitted['location']); ?>" />
+            </div>
+            <div>
+              <label class="label" for="client">Client</label>
+              <input id="client" name="client" type="text" placeholder="Client name" value="<?php echo safe($submitted['client']); ?>" />
+            </div>
+            
+            <div>
+              <label class="label" for="date-of-invitation">Date of Invitation</label>
+              <input id="date-of-invitation" name="date_of_invitation" type="date" value="<?php echo safe($submitted['date_of_invitation']); ?>" />
+            </div>
+            <div>
+              <label class="label" for="submission-date">Submission Date</label>
+              <input id="submission-date" name="submission_date" type="date" value="<?php echo safe($submitted['submission_date']); ?>" />
+            </div>
+            <div>
+              <label class="label" for="contact-person-name">Contact Person Name</label>
+              <input id="contact-person-name" name="contact_person_name" type="text" placeholder="Contact name" value="<?php echo safe($submitted['contact_person_name']); ?>" />
+            </div>
+            <div>
+              <label class="label" for="contact-person-title">Contact Person Title</label>
+              <input id="contact-person-title" name="contact_person_title" type="text" placeholder="Title" value="<?php echo safe($submitted['contact_person_title']); ?>" />
+            </div>
+            <div>
+              <label class="label" for="contact-person-phone">Contact Person Phone</label>
+              <input id="contact-person-phone" name="contact_person_phone" type="text" placeholder="Phone" value="<?php echo safe($submitted['contact_person_phone']); ?>" />
+            </div>
+            <div class="span-full">
+              <label class="label" for="remarks">Remarks</label>
+              <input id="remarks" name="remarks" type="text" placeholder="Notes" value="<?php echo safe($submitted['remarks']); ?>" />
+            </div>
+            <div>
+              <label class="label" for="business-line">Business Line</label>
+              <select id="business-line" name="business_line_id" required>
+                <option value="">-- Select Business Line --</option>
+                <?php foreach ($businessLineOptions as $option): ?>
+                  <option value="<?php echo safe($option['value']); ?>" <?php echo $submitted['business_line_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div>
+              <label class="label" for="opportunity-owner">Opportunity Owner</label>
+              <select id="opportunity-owner" name="opportunity_owner_id" required>
+                <option value="">-- Select Opportunity Owner --</option>
+                <?php foreach ($opportunityOwnerOptions as $option): ?>
+                  <option value="<?php echo safe($option['value']); ?>" <?php echo $submitted['opportunity_owner_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+          <div class="actions" style="justify-content:flex-end; gap:10px;">
+            <button class="btn" type="button" data-close-modal>Cancel</button>
+            <button class="btn btn-save" type="submit">Create opportunity</button>
+          </div>
+        </form>
       </div>
-      <form method="POST" action="business-development.php" style="display:grid; gap:12px;">
-        <input type="hidden" name="action" value="create" />
-        <div class="opportunity-form-grid">
-          <div>
-            <label class="label" for="project-name">Project Name</label>
-            <input id="project-name" name="project_name" type="text" placeholder="New Opportunity" value="<?php echo safe($submitted['project_name']); ?>" required />
-          </div>
-          <div>
-            <label class="label" for="location">Location</label>
-            <input id="location" name="location" type="text" placeholder="Cairo" value="<?php echo safe($submitted['location']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="client">Client</label>
-            <input id="client" name="client" type="text" placeholder="Client name" value="<?php echo safe($submitted['client']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="consultant">Consultant</label>
-            <input id="consultant" name="consultant" type="text" placeholder="Consultant name" value="<?php echo safe($submitted['consultant']); ?>" />
-          </div>
-          
-          <div>
-            <label class="label" for="date-of-invitation">Date of Invitation</label>
-            <input id="date-of-invitation" name="date_of_invitation" type="date" value="<?php echo safe($submitted['date_of_invitation']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="submission-date">Submission Date</label>
-            <input id="submission-date" name="submission_date" type="date" value="<?php echo safe($submitted['submission_date']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="contact-person-name">Contact Person Name</label>
-            <input id="contact-person-name" name="contact_person_name" type="text" placeholder="Contact name" value="<?php echo safe($submitted['contact_person_name']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="contact-person-title">Contact Person Title</label>
-            <input id="contact-person-title" name="contact_person_title" type="text" placeholder="Title" value="<?php echo safe($submitted['contact_person_title']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="contact-person-phone">Contact Person Phone</label>
-            <input id="contact-person-phone" name="contact_person_phone" type="text" placeholder="Phone" value="<?php echo safe($submitted['contact_person_phone']); ?>" />
-          </div>
-          <div class="span-full">
-            <label class="label" for="remarks">Remarks</label>
-            <input id="remarks" name="remarks" type="text" placeholder="Notes" value="<?php echo safe($submitted['remarks']); ?>" />
-          </div>
-          <div>
-            <label class="label" for="business-line">Business Line</label>
-            <select id="business-line" name="business_line_id" required>
-              <option value="">-- Select Business Line --</option>
-              <?php foreach ($businessLineOptions as $option): ?>
-                <option value="<?php echo safe($option['value']); ?>" <?php echo $submitted['business_line_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div>
-            <label class="label" for="opportunity-owner">Opportunity Owner</label>
-            <select id="opportunity-owner" name="opportunity_owner_id" required>
-              <option value="">-- Select Opportunity Owner --</option>
-              <?php foreach ($opportunityOwnerOptions as $option): ?>
-                <option value="<?php echo safe($option['value']); ?>" <?php echo $submitted['opportunity_owner_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-        </div>
-        <div class="actions" style="justify-content:flex-end; gap:10px;">
-          <button class="btn" type="button" data-close-modal>Cancel</button>
-          <button class="btn btn-save" type="submit">Create opportunity</button>
-        </div>
-      </form>
     </div>
-  </div>
+  <?php endif; ?>
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
