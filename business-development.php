@@ -27,8 +27,9 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
 
 $opportunityOwners = fetch_table('opportunity_owners', 'opportunity_owner_name');
 $opportunityOwnerOptions = to_options($opportunityOwners, 'opportunity_owner_id', 'opportunity_owner_name');
-$approvalStatuses = ['Pending Review', 'Approved', 'Rejected', 'Awarded to Competitor'];
-$defaultApprovalStatus = 'Pending Review';
+$approvalStatuses = ['Qualifications', 'Quotation', 'Negotiation', 'Award', 'Closed Won'];
+$defaultApprovalStatus = 'Qualifications';
+
 
 const OPPORTUNITY_UPLOAD_DIR = __DIR__ . '/assets/uploads/opportunities';
 const OPPORTUNITY_UPLOAD_PUBLIC_DIR = 'assets/uploads/opportunities';
