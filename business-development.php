@@ -582,8 +582,71 @@ if ($error === '' && !$canRead) {
       gap: 12px;
     }
 
-     .opportunity-form-grid .span-full {
+    .opportunity-form-grid .span-full {
       grid-column: 1 / -1;
+    }
+
+    .checkbox-dropdown {
+      position: relative;
+    }
+
+    .checkbox-dropdown__toggle {
+      width: 100%;
+      text-align: left;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: inherit;
+      cursor: pointer;
+    }
+
+    .checkbox-dropdown__toggle:focus-visible {
+      outline: 2px solid var(--secondary);
+      outline-offset: 2px;
+    }
+
+    .checkbox-dropdown__menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+      padding: 8px;
+      display: none;
+      max-height: 220px;
+      overflow-y: auto;
+      z-index: 20;
+    }
+
+    .checkbox-dropdown.is-open .checkbox-dropdown__menu {
+      display: grid;
+      gap: 6px;
+    }
+
+    .checkbox-dropdown__option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    .checkbox-dropdown__option input[type="checkbox"] {
+      accent-color: var(--secondary);
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
     }
 
     .opportunity-manage-table {
@@ -1089,15 +1152,31 @@ if ($error === '' && !$canRead) {
               <label class="label" for="remarks">Remarks</label>
               <input id="remarks" name="remarks" type="text" placeholder="Notes" value="<?php echo safe($submitted['remarks']); ?>" />
             </div>
-            <div>
+           <div>
               <label class="label" for="business-line">Business Line(s)</label>
-              <select id="business-line" name="business_line_id[]" multiple required>
-                <option value="">-- Select Business Line(s) --</option>
-                <?php foreach ($businessLineOptions as $option): ?>
-                  <option value="<?php echo safe($option['value']); ?>" <?php echo in_array($option['value'], $submittedBusinessLineIds, true) ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-                <?php endforeach; ?>
-              </select>
-              <small style="color:var(--muted);">Hold Ctrl (Windows) or Cmd (Mac) to select multiple.</small>
+              <div class="checkbox-dropdown" data-checkbox-dropdown>
+                <button class="checkbox-dropdown__toggle" id="business-line-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
+                  Select business line(s)
+                </button>
+                <div class="checkbox-dropdown__menu" role="listbox" aria-multiselectable="true">
+                  <?php foreach ($businessLineOptions as $option): ?>
+                    <label class="checkbox-dropdown__option">
+                      <input type="checkbox" name="business_line_id[]" value="<?php echo safe($option['value']); ?>" <?php echo in_array($option['value'], $submittedBusinessLineIds, true) ? 'checked' : ''; ?> />
+                      <span><?php echo safe($option['label']); ?></span>
+                    </label>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+              <input
+                id="business-line-required"
+                class="visually-hidden"
+                type="text"
+                name="business_line_required"
+                value="<?php echo safe(implode(', ', $submittedBusinessLineIds)); ?>"
+                required
+                tabindex="-1"
+                aria-hidden="true"
+              />
             </div>
             <div>
               <label class="label" for="opportunity-owner">Opportunity Owner</label>
@@ -1128,12 +1207,13 @@ if ($error === '' && !$canRead) {
       const openCreateButtons = document.querySelectorAll('[data-open-create]');
       const createModal = document.getElementById('create-opportunity-modal');
       const manageModal = document.getElementById('manage-opportunity-modal');
-      const detailsModal = document.getElementById('details-opportunity-modal');
+     const detailsModal = document.getElementById('details-opportunity-modal');
       const manageTitle = document.getElementById('manage-opportunity-title');
       const manageForm = document.getElementById('update-form');
       const manageCurrentFile = document.getElementById('manage-current-file');
       const manageCurrentFileLink = document.getElementById('manage-current-file-link');
       const deleteBusinessDevId = document.getElementById('delete-business-dev-id');
+      const checkboxDropdown = document.querySelector('[data-checkbox-dropdown]');
 
       const parseFiles = (value) => {
         if (!value) return [];
@@ -1148,15 +1228,78 @@ if ($error === '' && !$canRead) {
         return value ? [value] : [];
       };
 
-      const buildFileLinks = (files) => {
+       const buildFileLinks = (files) => {
         return files
           .map((file, index) => `<a href="${file}" target="_blank" rel="noopener">File ${index + 1}</a>`)
           .join('<br>');
-      };      const hideModal = (modal) => {
+      };
+
+      const hideModal = (modal) => {
         if (modal) {
           modal.classList.remove('is-visible');
         }
       };
+
+      const setupCheckboxDropdown = () => {
+        if (!checkboxDropdown) {
+          return;
+        }
+
+        const toggle = checkboxDropdown.querySelector('.checkbox-dropdown__toggle');
+        const menu = checkboxDropdown.querySelector('.checkbox-dropdown__menu');
+        const checkboxes = menu.querySelectorAll('input[type="checkbox"]');
+        const requiredInput = document.getElementById('business-line-required');
+
+        const updateLabel = () => {
+          const selected = Array.from(checkboxes)
+            .filter((checkbox) => checkbox.checked)
+            .map((checkbox) => checkbox.closest('label')?.querySelector('span')?.textContent?.trim())
+            .filter(Boolean);
+
+          toggle.textContent = selected.length ? selected.join(', ') : 'Select business line(s)';
+          if (requiredInput) {
+            requiredInput.value = selected.length ? selected.join(',') : '';
+          }
+        };
+
+        const closeMenu = () => {
+          checkboxDropdown.classList.remove('is-open');
+          toggle.setAttribute('aria-expanded', 'false');
+        };
+
+        const openMenu = () => {
+          checkboxDropdown.classList.add('is-open');
+          toggle.setAttribute('aria-expanded', 'true');
+        };
+
+        toggle.addEventListener('click', () => {
+          if (checkboxDropdown.classList.contains('is-open')) {
+            closeMenu();
+          } else {
+            openMenu();
+          }
+        });
+
+        document.addEventListener('click', (event) => {
+          if (!checkboxDropdown.contains(event.target)) {
+            closeMenu();
+          }
+        });
+
+        document.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') {
+            closeMenu();
+          }
+        });
+
+        checkboxes.forEach((checkbox) => {
+          checkbox.addEventListener('change', updateLabel);
+        });
+
+        updateLabel();
+      };
+
+      setupCheckboxDropdown();
 
       const showModal = (modal) => {
         if (modal) {
