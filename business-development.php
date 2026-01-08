@@ -27,6 +27,8 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
 
 $opportunityOwners = fetch_table('opportunity_owners', 'opportunity_owner_name');
 $opportunityOwnerOptions = to_options($opportunityOwners, 'opportunity_owner_id', 'opportunity_owner_name');
+$approvalStatuses = ['Pending Review', 'Approved', 'Rejected', 'Awarded to Competitor'];
+$defaultApprovalStatus = 'Pending Review';
 
 const OPPORTUNITY_UPLOAD_DIR = __DIR__ . '/assets/uploads/opportunities';
 const OPPORTUNITY_UPLOAD_PUBLIC_DIR = 'assets/uploads/opportunities';
@@ -154,6 +156,7 @@ $submitted = [
     'business_line_id' => trim($_POST['business_line_id'] ?? ''),
     'opportunity_owner_id' => trim($_POST['opportunity_owner_id'] ?? ''),
 ];
+$selectedApprovalStatus = $submitted['approvalstatus'] !== '' ? $submitted['approvalstatus'] : $defaultApprovalStatus;
 
 if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -477,10 +480,15 @@ if ($error === '' && !$canRead) {
       margin-top: 12px;
     }
 
-    .opportunity-card__footer .btn,
+     .opportunity-card__footer .btn,
      .opportunity-card__footer a.btn {
       flex: 1;
       text-align: center;
+    }
+
+    .opportunity-card__status {
+      font-weight: 700;
+      color: var(--secondary);
     }
 
     .opportunity-card__select {
@@ -727,6 +735,7 @@ if ($error === '' && !$canRead) {
           <?php foreach ($opportunities as $opportunity): ?>
             <?php
               $businessLineName = $opportunity['business_line_name'] ?: 'Business line not set';
+              $approvalLabel = $opportunity['approvalstatus'] ?: $defaultApprovalStatus;
               $flagClass = $opportunity['submission_date'] ? 'is-submitted' : 'is-missing';
               $flagLabel = $opportunity['submission_date'] ? 'Submitted' : 'Pending';
             ?>
@@ -760,6 +769,7 @@ if ($error === '' && !$canRead) {
                 <h4><?php echo safe($opportunity['project_name']); ?></h4>
                 <p><small>Client: <?php echo safe($opportunity['client'] ?: '—'); ?> | Business line: <?php echo safe($businessLineName); ?></small></p>
                 <p><small>Owner: <?php echo safe($opportunity['opportunity_owner_name'] ?: $opportunity['opportunity_owner_id'] ?: '—'); ?></small></p>
+                <p class="opportunity-card__status">Status: <?php echo safe($approvalLabel); ?></p>
               </div>
               <div class="opportunity-card__footer">
                 <?php if ($canUpdate): ?>
@@ -841,7 +851,11 @@ if ($error === '' && !$canRead) {
                 <td>
                   <div class="field">
                     <label class="label" for="manage-approval-status">Approval Status</label>
-                    <input id="manage-approval-status" name="approvalstatus" type="text" />
+                    <select id="manage-approval-status" name="approvalstatus">
+                      <?php foreach ($approvalStatuses as $status): ?>
+                        <option value="<?php echo safe($status); ?>"><?php echo safe($status); ?></option>
+                      <?php endforeach; ?>
+                    </select>
                   </div>
                 </td>
               </tr>
@@ -1021,9 +1035,13 @@ if ($error === '' && !$canRead) {
               <label class="label" for="submission-date">Submission Date</label>
               <input id="submission-date" name="submission_date" type="date" value="<?php echo safe($submitted['submission_date']); ?>" />
             </div>
-            <div>
+           <div>
               <label class="label" for="approval-status">Approval Status</label>
-              <input id="approval-status" name="approvalstatus" type="text" placeholder="Pending" value="<?php echo safe($submitted['approvalstatus']); ?>" />
+              <select id="approval-status" name="approvalstatus">
+                <?php foreach ($approvalStatuses as $status): ?>
+                  <option value="<?php echo safe($status); ?>" <?php echo $selectedApprovalStatus === $status ? 'selected' : ''; ?>><?php echo safe($status); ?></option>
+                <?php endforeach; ?>
+              </select>
             </div>
             <div>
               <label class="label" for="contact-person-name">Contact Person Name</label>
