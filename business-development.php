@@ -13,7 +13,7 @@ $error = '';
 $success = '';
 $successHtml = '';
 $modalOverride = null;
-$metabaseUrl = getenv('METABASE_URL') ?: 'https://metabase.example.com';
+$metabaseUrl = getenv('METABASE_URL') ?: 'http://localhost:3000/dashboard/37-business-development-dashboard?business_line=&date_of_invitation=&opportunity_owner=&status=&submission_date=';
 
 $pdo = null;
 try {
@@ -240,7 +240,9 @@ $filters = [
 ];
 
 $opportunities = [];
-
+$totalOpportunities = 0;
+$visibleCount = (int) ($_GET['visible_count'] ?? 4);
+$visibleCount = max(4, $visibleCount);
 if ($pdo && $canRead) {
     try {
         $conditions = [];
@@ -255,7 +257,18 @@ if ($pdo && $canRead) {
             $params[':filter_opportunity_owner_id'] = $filters['opportunity_owner_id'];
         }
 
-        $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
+       $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
+        $countSql = "SELECT COUNT(*)
+                     FROM business_development bd
+                     {$whereSql}";
+        $countStmt = $pdo->prepare($countSql);
+        $countStmt->execute($params);
+        $totalOpportunities = (int) $countStmt->fetchColumn();
+
+        if ($visibleCount > $totalOpportunities && $totalOpportunities > 0) {
+            $visibleCount = $totalOpportunities;
+        }
+
         $sql = "SELECT bd.business_dev_id, bd.project_name, bd.location, bd.client, bd.date_of_invitation, bd.submission_date, bd.contact_person_name, bd.contact_person_title, bd.contact_person_phone, bd.remarks, bd.business_line_id, bd.opportunity_owner_id,
                        COALESCE(bl.business_line_name, '') AS business_line_name,
                        COALESCE(oo.opportunity_owner_name, '') AS opportunity_owner_name
@@ -263,9 +276,14 @@ if ($pdo && $canRead) {
                 LEFT JOIN business_lines bl ON bl.business_line_id = bd.business_line_id
                 LEFT JOIN opportunity_owners oo ON oo.opportunity_owner_id = bd.opportunity_owner_id
                 {$whereSql}
-                ORDER BY bd.business_dev_id DESC";
+                ORDER BY bd.business_dev_id DESC
+                LIMIT :visible_count";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue(':visible_count', $visibleCount, PDO::PARAM_INT);
+        $stmt->execute();
         $opportunities = $stmt->fetchAll();
      } catch (Throwable $e) {
         $error = $error ?: format_db_error($e, 'business_development table');
@@ -601,10 +619,25 @@ if ($error === '' && !$canRead) {
               </div>
              </div>
           <?php endforeach; ?>
-        <?php if ($canDelete): ?>
+       <?php if ($canDelete): ?>
             </div>
           </form>
         <?php else: ?>
+          </div>
+        <?php endif; ?>
+        <?php if ($totalOpportunities > 0): ?>
+          <div class="actions" style="justify-content:space-between; margin-top:12px;">
+            <span style="color:var(--muted);">
+              Showing <?php echo safe((string) count($opportunities)); ?> of <?php echo safe((string) $totalOpportunities); ?> opportunities
+            </span>
+            <?php if ($visibleCount < $totalOpportunities): ?>
+              <form method="GET" action="business-development.php">
+                <input type="hidden" name="filter_business_line_id" value="<?php echo safe($filters['business_line_id']); ?>" />
+                <input type="hidden" name="filter_opportunity_owner_id" value="<?php echo safe($filters['opportunity_owner_id']); ?>" />
+                <input type="hidden" name="visible_count" value="<?php echo safe((string) ($visibleCount + 4)); ?>" />
+                <button class="btn btn-neutral" type="submit">View more</button>
+              </form>
+            <?php endif; ?>
           </div>
         <?php endif; ?>
       <?php endif; ?>
