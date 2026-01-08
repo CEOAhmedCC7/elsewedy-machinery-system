@@ -598,8 +598,8 @@ if ($error === '' && !$canRead) {
       width: 100%;
       text-align: left;
       padding: 10px 12px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
+       border: 1.5px solid var(--secondary);
+      border-radius: var(--input-radius);
       background: var(--surface);
       color: inherit;
       cursor: pointer;
@@ -615,8 +615,8 @@ if ($error === '' && !$canRead) {
       top: calc(100% + 6px);
       left: 0;
       right: 0;
-      border: 1px solid var(--border);
-      border-radius: 8px;
+       border: 1.5px solid var(--secondary);
+      border-radius: var(--input-radius);
       background: #fff;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
       padding: 8px;
@@ -735,10 +735,14 @@ if ($error === '' && !$canRead) {
       border-bottom: none;
     }
 
-    .project-modal .message-dialog {
+     .project-modal .message-dialog {
       max-width: 760px;
       max-height: 70vh;
       overflow-y: auto;
+    }
+
+    #create-opportunity-modal .message-dialog {
+      max-width: 920px;
     }
   </style>
 </head>
