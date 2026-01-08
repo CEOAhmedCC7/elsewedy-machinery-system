@@ -578,7 +578,7 @@ if ($error === '' && !$canRead) {
 
     .opportunity-form-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(220px, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
     }
 
@@ -586,6 +586,11 @@ if ($error === '' && !$canRead) {
       grid-column: 1 / -1;
     }
 
+    @media (max-width: 900px) {
+      .opportunity-form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
     .checkbox-dropdown {
       position: relative;
     }
@@ -741,8 +746,10 @@ if ($error === '' && !$canRead) {
       overflow-y: auto;
     }
 
-    #create-opportunity-modal .message-dialog {
+     #create-opportunity-modal .message-dialog {
       max-width: 920px;
+      width: min(920px, 100%);
+      overflow-x: hidden;
     }
   </style>
 </head>
@@ -1117,53 +1124,20 @@ if ($error === '' && !$canRead) {
         </div>
         <form method="POST" action="business-development.php" enctype="multipart/form-data" style="display:grid; gap:12px;">
           <input type="hidden" name="action" value="create" />
-          <div class="opportunity-form-grid">
+         <div class="opportunity-form-grid">
             <div>
               <label class="label" for="project-name">Project Name</label>
               <input id="project-name" name="project_name" type="text" placeholder="New Opportunity" value="<?php echo safe($submitted['project_name']); ?>" required />
+            </div>
+            <div>
+              <label class="label" for="client">Client</label>
+              <input id="client" name="client" type="text" placeholder="Client name" value="<?php echo safe($submitted['client']); ?>" />
             </div>
             <div>
               <label class="label" for="location">Location</label>
               <input id="location" name="location" type="text" placeholder="Cairo" value="<?php echo safe($submitted['location']); ?>" />
             </div>
             <div>
-              <label class="label" for="client">Client</label>
-              <input id="client" name="client" type="text" placeholder="Client name" value="<?php echo safe($submitted['client']); ?>" />
-            </div>
-            
-            <div>
-              <label class="label" for="date-of-invitation">Date of Invitation</label>
-              <input id="date-of-invitation" name="date_of_invitation" type="date" value="<?php echo safe($submitted['date_of_invitation']); ?>" />
-            </div>
-            <div>
-              <label class="label" for="submission-date">Submission Date</label>
-              <input id="submission-date" name="submission_date" type="date" value="<?php echo safe($submitted['submission_date']); ?>" />
-            </div>
-           <div>
-              <label class="label" for="approval-status">Approval Status</label>
-              <select id="approval-status" name="approvalstatus">
-                <?php foreach ($approvalStatuses as $status): ?>
-                  <option value="<?php echo safe($status); ?>" <?php echo $selectedApprovalStatus === $status ? 'selected' : ''; ?>><?php echo safe($status); ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <div>
-              <label class="label" for="contact-person-name">Contact Person Name</label>
-              <input id="contact-person-name" name="contact_person_name" type="text" placeholder="Contact name" value="<?php echo safe($submitted['contact_person_name']); ?>" />
-            </div>
-            <div>
-              <label class="label" for="contact-person-title">Contact Person Title</label>
-              <input id="contact-person-title" name="contact_person_title" type="text" placeholder="Title" value="<?php echo safe($submitted['contact_person_title']); ?>" />
-            </div>
-            <div>
-              <label class="label" for="contact-person-phone">Contact Person Phone</label>
-              <input id="contact-person-phone" name="contact_person_phone" type="text" placeholder="Phone" value="<?php echo safe($submitted['contact_person_phone']); ?>" />
-            </div>
-            <div class="span-full">
-              <label class="label" for="remarks">Remarks</label>
-              <input id="remarks" name="remarks" type="text" placeholder="Notes" value="<?php echo safe($submitted['remarks']); ?>" />
-            </div>
-           <div>
               <label class="label" for="business-line">Business Line(s)</label>
               <div class="checkbox-dropdown" data-checkbox-dropdown>
                 <button class="checkbox-dropdown__toggle" id="business-line-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
@@ -1195,12 +1169,44 @@ if ($error === '' && !$canRead) {
                 <option value="">-- Select Opportunity Owner --</option>
                 <?php foreach ($opportunityOwnerOptions as $option): ?>
                   <option value="<?php echo safe($option['value']); ?>" <?php echo $submitted['opportunity_owner_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+                 <?php endforeach; ?>
+              </select>
+            </div>
+            <div>
+              <label class="label" for="date-of-invitation">Date of Invitation</label>
+              <input id="date-of-invitation" name="date_of_invitation" type="date" value="<?php echo safe($submitted['date_of_invitation']); ?>" />
+            </div>
+            <div>
+              <label class="label" for="submission-date">Submission Date</label>
+              <input id="submission-date" name="submission_date" type="date" value="<?php echo safe($submitted['submission_date']); ?>" />
+            </div>
+            <div>
+              <label class="label" for="approval-status">Approval Status</label>
+              <select id="approval-status" name="approvalstatus">
+                <?php foreach ($approvalStatuses as $status): ?>
+                  <option value="<?php echo safe($status); ?>" <?php echo $selectedApprovalStatus === $status ? 'selected' : ''; ?>><?php echo safe($status); ?></option>
                 <?php endforeach; ?>
               </select>
+            </div>
+            <div>
+              <label class="label" for="contact-person-name">Contact Person Name</label>
+              <input id="contact-person-name" name="contact_person_name" type="text" placeholder="Contact name" value="<?php echo safe($submitted['contact_person_name']); ?>" />
+            </div>
+            <div>
+              <label class="label" for="contact-person-title">Contact Person Title</label>
+              <input id="contact-person-title" name="contact_person_title" type="text" placeholder="Title" value="<?php echo safe($submitted['contact_person_title']); ?>" />
+            </div>
+            <div>
+              <label class="label" for="contact-person-phone">Contact Person Phone</label>
+              <input id="contact-person-phone" name="contact_person_phone" type="text" placeholder="Phone" value="<?php echo safe($submitted['contact_person_phone']); ?>" />
             </div>
             <div class="span-full">
               <label class="label" for="opportunity-file">Attach files</label>
               <input id="opportunity-file" name="opportunity_file[]" type="file" multiple />
+            </div>
+            <div class="span-full">
+              <label class="label" for="remarks">Remarks</label>
+              <input id="remarks" name="remarks" type="text" placeholder="Notes" value="<?php echo safe($submitted['remarks']); ?>" />
             </div>
           </div>
           <div class="actions" style="justify-content:flex-end; gap:10px;">
