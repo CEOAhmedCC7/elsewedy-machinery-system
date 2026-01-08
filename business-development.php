@@ -403,6 +403,10 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
 $filters = [
     'business_line_id' => trim($_GET['filter_business_line_id'] ?? ''),
     'opportunity_owner_id' => trim($_GET['filter_opportunity_owner_id'] ?? ''),
+    'project_name' => trim($_GET['filter_project_name'] ?? ''),
+    'invitation_month' => trim($_GET['filter_invitation_month'] ?? ''),
+    'invitation_year' => trim($_GET['filter_invitation_year'] ?? ''),
+    'approvalstatus' => trim($_GET['filter_approvalstatus'] ?? ''),
 ];
 
 $opportunities = [];
@@ -421,6 +425,28 @@ if ($pdo && $canRead) {
         if ($filters['opportunity_owner_id'] !== '') {
             $conditions[] = 'bd.opportunity_owner_id = :filter_opportunity_owner_id';
             $params[':filter_opportunity_owner_id'] = $filters['opportunity_owner_id'];
+        }
+        if ($filters['project_name'] !== '') {
+            $conditions[] = 'bd.project_name ILIKE :filter_project_name';
+            $params[':filter_project_name'] = '%' . $filters['project_name'] . '%';
+        }
+        if ($filters['approvalstatus'] !== '') {
+            $conditions[] = 'bd."approvalstatus" = :filter_approvalstatus';
+            $params[':filter_approvalstatus'] = $filters['approvalstatus'];
+        }
+        if ($filters['invitation_month'] !== '' && ctype_digit($filters['invitation_month'])) {
+            $monthValue = (int) $filters['invitation_month'];
+            if ($monthValue >= 1 && $monthValue <= 12) {
+                $conditions[] = 'EXTRACT(MONTH FROM bd.date_of_invitation) = :filter_invitation_month';
+                $params[':filter_invitation_month'] = $monthValue;
+            }
+        }
+        if ($filters['invitation_year'] !== '' && ctype_digit($filters['invitation_year'])) {
+            $yearValue = (int) $filters['invitation_year'];
+            if ($yearValue > 0) {
+                $conditions[] = 'EXTRACT(YEAR FROM bd.date_of_invitation) = :filter_invitation_year';
+                $params[':filter_invitation_year'] = $yearValue;
+            }
         }
 
        $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
@@ -812,11 +838,43 @@ if ($error === '' && !$canRead) {
               </select>
             </div>
             <div style="flex:1; min-width:220px;">
+              <label class="label" for="filter_project_name">Project Name</label>
+              <input id="filter_project_name" name="filter_project_name" type="text" placeholder="Search project name" value="<?php echo safe($filters['project_name']); ?>" />
+            </div>
+            <div style="flex:1; min-width:220px;">
               <label class="label" for="filter_opportunity_owner_id">Opportunity Owner</label>
               <select id="filter_opportunity_owner_id" name="filter_opportunity_owner_id">
                 <option value="">All opportunity owners</option>
                 <?php foreach ($opportunityOwnerOptions as $option): ?>
                   <option value="<?php echo safe($option['value']); ?>" <?php echo $filters['opportunity_owner_id'] === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+          <div class="form-row" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+            <div style="flex:1; min-width:200px;">
+              <label class="label" for="filter_invitation_month">Invitation Month</label>
+              <select id="filter_invitation_month" name="filter_invitation_month">
+                <option value="">All months</option>
+                <?php for ($month = 1; $month <= 12; $month++): ?>
+                  <option value="<?php echo safe((string) $month); ?>" <?php echo $filters['invitation_month'] === (string) $month ? 'selected' : ''; ?>>
+                    <?php echo safe(date('F', mktime(0, 0, 0, $month, 1))); ?>
+                  </option>
+                <?php endfor; ?>
+              </select>
+            </div>
+            <div style="flex:1; min-width:200px;">
+              <label class="label" for="filter_invitation_year">Invitation Year</label>
+              <input id="filter_invitation_year" name="filter_invitation_year" type="number" min="1900" max="2100" placeholder="e.g. 2024" value="<?php echo safe($filters['invitation_year']); ?>" />
+            </div>
+            <div style="flex:1; min-width:220px;">
+              <label class="label" for="filter_approvalstatus">Status</label>
+              <select id="filter_approvalstatus" name="filter_approvalstatus">
+                <option value="">All statuses</option>
+                <?php foreach ($approvalStatuses as $status): ?>
+                  <option value="<?php echo safe($status); ?>" <?php echo $filters['approvalstatus'] === $status ? 'selected' : ''; ?>>
+                    <?php echo safe($status); ?>
+                  </option>
                 <?php endforeach; ?>
               </select>
             </div>
@@ -902,9 +960,13 @@ if ($error === '' && !$canRead) {
               Showing <?php echo safe((string) count($opportunities)); ?> of <?php echo safe((string) $totalOpportunities); ?> opportunities
             </span>
             <?php if ($visibleCount < $totalOpportunities): ?>
-              <form method="GET" action="business-development.php">
+               <form method="GET" action="business-development.php">
                 <input type="hidden" name="filter_business_line_id" value="<?php echo safe($filters['business_line_id']); ?>" />
+                <input type="hidden" name="filter_project_name" value="<?php echo safe($filters['project_name']); ?>" />
                 <input type="hidden" name="filter_opportunity_owner_id" value="<?php echo safe($filters['opportunity_owner_id']); ?>" />
+                <input type="hidden" name="filter_invitation_month" value="<?php echo safe($filters['invitation_month']); ?>" />
+                <input type="hidden" name="filter_invitation_year" value="<?php echo safe($filters['invitation_year']); ?>" />
+                <input type="hidden" name="filter_approvalstatus" value="<?php echo safe($filters['approvalstatus']); ?>" />
                 <input type="hidden" name="visible_count" value="<?php echo safe((string) ($visibleCount + 4)); ?>" />
                 <button class="btn btn-update" type="submit">View more</button>
               </form>
