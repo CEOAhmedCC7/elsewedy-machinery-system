@@ -827,8 +827,8 @@ if ($error === '' && !$canRead) {
       </div>
       <?php if ($canRead): ?>
         <form method="GET" action="business-development.php" class="filter-form" style="display:grid; gap:10px;">
-          <div class="form-row" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
-            <div style="flex:1; min-width:200px;">
+          <div class="form-row" style="display:grid; grid-template-columns:repeat(6, minmax(160px, 1fr)); gap:12px; align-items:flex-end;">
+            <div>
               <label class="label" for="filter_business_line_id">Business Line</label>
               <select id="filter_business_line_id" name="filter_business_line_id">
                 <option value="">All business lines</option>
@@ -837,11 +837,11 @@ if ($error === '' && !$canRead) {
                 <?php endforeach; ?>
               </select>
             </div>
-            <div style="flex:1; min-width:220px;">
+            <div>
               <label class="label" for="filter_project_name">Project Name</label>
               <input id="filter_project_name" name="filter_project_name" type="text" placeholder="Search project name" value="<?php echo safe($filters['project_name']); ?>" />
             </div>
-            <div style="flex:1; min-width:220px;">
+            <div>
               <label class="label" for="filter_opportunity_owner_id">Opportunity Owner</label>
               <select id="filter_opportunity_owner_id" name="filter_opportunity_owner_id">
                 <option value="">All opportunity owners</option>
@@ -850,9 +850,7 @@ if ($error === '' && !$canRead) {
                 <?php endforeach; ?>
               </select>
             </div>
-          </div>
-          <div class="form-row" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
-            <div style="flex:1; min-width:200px;">
+            <div>
               <label class="label" for="filter_invitation_month">Invitation Month</label>
               <select id="filter_invitation_month" name="filter_invitation_month">
                 <option value="">All months</option>
@@ -863,11 +861,18 @@ if ($error === '' && !$canRead) {
                 <?php endfor; ?>
               </select>
             </div>
-            <div style="flex:1; min-width:200px;">
+            <div>
               <label class="label" for="filter_invitation_year">Invitation Year</label>
-              <input id="filter_invitation_year" name="filter_invitation_year" type="number" min="1900" max="2100" placeholder="e.g. 2024" value="<?php echo safe($filters['invitation_year']); ?>" />
+              <select id="filter_invitation_year" name="filter_invitation_year">
+                <option value="">All years</option>
+                <?php for ($year = 2026; $year <= 2035; $year++): ?>
+                  <option value="<?php echo safe((string) $year); ?>" <?php echo $filters['invitation_year'] === (string) $year ? 'selected' : ''; ?>>
+                    <?php echo safe((string) $year); ?>
+                  </option>
+                <?php endfor; ?>
+              </select>
             </div>
-            <div style="flex:1; min-width:220px;">
+            <div>
               <label class="label" for="filter_approvalstatus">Status</label>
               <select id="filter_approvalstatus" name="filter_approvalstatus">
                 <option value="">All statuses</option>
