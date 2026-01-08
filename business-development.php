@@ -380,11 +380,11 @@ if ($error === '' && !$canRead) {
     }
 
     .opportunity-flag.is-missing {
-      background: rgba(255, 76, 76, 0.9);
+      background: var(--secondary);
     }
 
     .opportunity-flag.is-submitted {
-      background: rgba(78, 205, 107, 0.9);
+      background: rgba(5, 168, 43, 0.9);
     }
 
     .opportunity-form-grid {
