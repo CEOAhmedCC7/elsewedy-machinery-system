@@ -28,6 +28,9 @@ $businessLineOptions = to_options($businessLines, 'business_line_id', 'business_
 $opportunityOwners = fetch_table('opportunity_owners', 'opportunity_owner_name');
 $opportunityOwnerOptions = to_options($opportunityOwners, 'opportunity_owner_id', 'opportunity_owner_name');
 
+const OPPORTUNITY_UPLOAD_DIR = __DIR__ . '/assets/uploads/opportunities';
+const OPPORTUNITY_UPLOAD_PUBLIC_DIR = 'assets/uploads/opportunities';
+
 function option_label(array $options, string $value): string
 {
     foreach ($options as $option) {
@@ -39,6 +42,39 @@ function option_label(array $options, string $value): string
     return $value;
 }
 
+function store_opportunity_upload(array $upload): string
+{
+    if ($upload['error'] !== UPLOAD_ERR_OK) {
+        throw new RuntimeException('Error uploading file.');
+    }
+
+    $originalName = basename((string) $upload['name']);
+    $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+    $allowed = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg'];
+
+    if ($extension === '' || !in_array($extension, $allowed, true)) {
+        throw new RuntimeException('Please upload a valid file (pdf, doc, docx, xls, xlsx, png, jpg, jpeg).');
+    }
+
+    $maxSize = 10 * 1024 * 1024;
+    if (!empty($upload['size']) && $upload['size'] > $maxSize) {
+        throw new RuntimeException('Please upload a file smaller than 10MB.');
+    }
+
+    if (!is_dir(OPPORTUNITY_UPLOAD_DIR)) {
+        mkdir(OPPORTUNITY_UPLOAD_DIR, 0755, true);
+    }
+
+    $fileName = bin2hex(random_bytes(12)) . '.' . $extension;
+    $targetPath = OPPORTUNITY_UPLOAD_DIR . '/' . $fileName;
+
+    if (!move_uploaded_file($upload['tmp_name'], $targetPath)) {
+        throw new RuntimeException('Unable to save the uploaded file.');
+    }
+
+    return OPPORTUNITY_UPLOAD_PUBLIC_DIR . '/' . $fileName;
+}
+
 $submitted = [
     'business_dev_id' => trim($_POST['business_dev_id'] ?? ''),
     'project_name' => trim($_POST['project_name'] ?? ''),
@@ -46,6 +82,7 @@ $submitted = [
     'client' => trim($_POST['client'] ?? ''),
     'date_of_invitation' => trim($_POST['date_of_invitation'] ?? ''),
     'submission_date' => trim($_POST['submission_date'] ?? ''),
+    'approval_status' => trim($_POST['approval_status'] ?? ''),
     'contact_person_name' => trim($_POST['contact_person_name'] ?? ''),
     'contact_person_title' => trim($_POST['contact_person_title'] ?? ''),
     'contact_person_phone' => trim($_POST['contact_person_phone'] ?? ''),
@@ -83,6 +120,12 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Please choose an opportunity owner.');
             }
 
+            $uploadedPath = null;
+            $upload = $_FILES['opportunity_file'] ?? null;
+            if ($upload && $upload['error'] !== UPLOAD_ERR_NO_FILE) {
+                $uploadedPath = store_opportunity_upload($upload);
+            }
+
             $duplicateCheck = $pdo->prepare(
                 "SELECT 1
                  FROM business_development
@@ -91,6 +134,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                    AND client IS NOT DISTINCT FROM NULLIF(:client, '')
                    AND date_of_invitation IS NOT DISTINCT FROM NULLIF(:date_of_invitation, '')::date
                    AND submission_date IS NOT DISTINCT FROM NULLIF(:submission_date, '')::date
+                --    AND Approval_Status IS NOT DISTINCT FROM NULLIF(:approval_status, '')
                    AND contact_person_name IS NOT DISTINCT FROM NULLIF(:contact_person_name, '')
                    AND contact_person_title IS NOT DISTINCT FROM NULLIF(:contact_person_title, '')
                    AND contact_person_phone IS NOT DISTINCT FROM NULLIF(:contact_person_phone, '')
@@ -105,6 +149,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':client' => $submitted['client'],
                 ':date_of_invitation' => $submitted['date_of_invitation'],
                 ':submission_date' => $submitted['submission_date'],
+                ':approval_status' => $submitted['approval_status'],
                 ':contact_person_name' => $submitted['contact_person_name'],
                 ':contact_person_title' => $submitted['contact_person_title'],
                 ':contact_person_phone' => $submitted['contact_person_phone'],
@@ -118,8 +163,8 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $stmt = $pdo->prepare(
-                "INSERT INTO business_development (project_name, location, client, date_of_invitation, submission_date, contact_person_name, contact_person_title, contact_person_phone, remarks, business_line_id, opportunity_owner_id)
-                 VALUES (:project_name, NULLIF(:location, ''), NULLIF(:client, ''), NULLIF(:date_of_invitation, '')::date, NULLIF(:submission_date, '')::date, NULLIF(:contact_person_name, ''), NULLIF(:contact_person_title, ''), NULLIF(:contact_person_phone, ''), NULLIF(:remarks, ''), :business_line_id, :opportunity_owner_id)"
+                "INSERT INTO business_development (project_name, location, client, date_of_invitation, submission_date, \"Approval_Status\", contact_person_name, contact_person_title, contact_person_phone, remarks, business_line_id, opportunity_owner_id, opportunity_file)
+                 VALUES (:project_name, NULLIF(:location, ''), NULLIF(:client, ''), NULLIF(:date_of_invitation, '')::date, NULLIF(:submission_date, '')::date, NULLIF(:approval_status, ''), NULLIF(:contact_person_name, ''), NULLIF(:contact_person_title, ''), NULLIF(:contact_person_phone, ''), NULLIF(:remarks, ''), :business_line_id, :opportunity_owner_id, NULLIF(:opportunity_file, ''))"
             );
             $stmt->execute([
                 ':project_name' => $submitted['project_name'],
@@ -127,12 +172,14 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':client' => $submitted['client'],
                 ':date_of_invitation' => $submitted['date_of_invitation'],
                 ':submission_date' => $submitted['submission_date'],
+                ':approval_status' => $submitted['approval_status'],
                 ':contact_person_name' => $submitted['contact_person_name'],
                 ':contact_person_title' => $submitted['contact_person_title'],
                 ':contact_person_phone' => $submitted['contact_person_phone'],
                 ':remarks' => $submitted['remarks'],
                 ':business_line_id' => $submitted['business_line_id'],
                 ':opportunity_owner_id' => $submitted['opportunity_owner_id'],
+                ':opportunity_file' => $uploadedPath,
             ]);
 
             $newId = (int) $pdo->lastInsertId('business_development_business_dev_id_seq');
@@ -142,6 +189,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'Client' => $submitted['client'] ?: '—',
                 'Invitation date' => $submitted['date_of_invitation'] ?: '—',
                 'Submission date' => $submitted['submission_date'] ?: '—',
+                'Approval status' => $submitted['approval_status'] ?: '—',
                 'Contact' => $submitted['contact_person_name'] ?: '—',
                 'Business line' => option_label($businessLineOptions, $submitted['business_line_id']),
                 'Opportunity owner' => option_label($opportunityOwnerOptions, $submitted['opportunity_owner_id']),
@@ -169,6 +217,13 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Please choose an opportunity owner.');
             }
 
+            $currentFile = trim($_POST['current_opportunity_file'] ?? '');
+            $upload = $_FILES['opportunity_file'] ?? null;
+            $uploadedPath = $currentFile;
+            if ($upload && $upload['error'] !== UPLOAD_ERR_NO_FILE) {
+                $uploadedPath = store_opportunity_upload($upload);
+            }
+
             $stmt = $pdo->prepare(
                 "UPDATE business_development
                  SET project_name = :project_name,
@@ -176,12 +231,14 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                      client = NULLIF(:client, ''),
                      date_of_invitation = NULLIF(:date_of_invitation, '')::date,
                      submission_date = NULLIF(:submission_date, '')::date,
+                     Approval_Status = NULLIF(:approval_status, ''),
                      contact_person_name = NULLIF(:contact_person_name, ''),
                      contact_person_title = NULLIF(:contact_person_title, ''),
                      contact_person_phone = NULLIF(:contact_person_phone, ''),
                      remarks = NULLIF(:remarks, ''),
                      business_line_id = :business_line_id,
-                     opportunity_owner_id = :opportunity_owner_id
+                     opportunity_owner_id = :opportunity_owner_id,
+                     opportunity_file = NULLIF(:opportunity_file, '')
                  WHERE business_dev_id = :business_dev_id"
             );
             $stmt->execute([
@@ -191,12 +248,14 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':client' => $submitted['client'],
                 ':date_of_invitation' => $submitted['date_of_invitation'],
                 ':submission_date' => $submitted['submission_date'],
+                ':approval_status' => $submitted['approval_status'],
                 ':contact_person_name' => $submitted['contact_person_name'],
                 ':contact_person_title' => $submitted['contact_person_title'],
                 ':contact_person_phone' => $submitted['contact_person_phone'],
                 ':remarks' => $submitted['remarks'],
                 ':business_line_id' => $submitted['business_line_id'],
                 ':opportunity_owner_id' => $submitted['opportunity_owner_id'],
+                ':opportunity_file' => $uploadedPath,
             ]);
 
             if ($stmt->rowCount() === 0) {
@@ -269,7 +328,7 @@ if ($pdo && $canRead) {
             $visibleCount = $totalOpportunities;
         }
 
-        $sql = "SELECT bd.business_dev_id, bd.project_name, bd.location, bd.client, bd.date_of_invitation, bd.submission_date, bd.contact_person_name, bd.contact_person_title, bd.contact_person_phone, bd.remarks, bd.business_line_id, bd.opportunity_owner_id,
+        $sql = "SELECT bd.business_dev_id, bd.project_name, bd.location, bd.client, bd.date_of_invitation, bd.submission_date, bd.\"Approval_Status\" AS approval_status, bd.contact_person_name, bd.contact_person_title, bd.contact_person_phone, bd.remarks, bd.business_line_id, bd.opportunity_owner_id, bd.opportunity_file,
                        COALESCE(bl.business_line_name, '') AS business_line_name,
                        COALESCE(oo.opportunity_owner_name, '') AS opportunity_owner_name
                 FROM business_development bd
@@ -597,7 +656,24 @@ if ($error === '' && !$canRead) {
               $flagClass = $opportunity['submission_date'] ? 'is-submitted' : 'is-missing';
               $flagLabel = $opportunity['submission_date'] ? 'Submitted' : 'Pending';
             ?>
-            <div class="module-card module-card--no-image opportunity-card" tabindex="0">
+            <div class="module-card module-card--no-image opportunity-card"
+                 tabindex="0"
+                 data-opportunity-id="<?php echo safe($opportunity['business_dev_id']); ?>"
+                 data-project-name="<?php echo safe($opportunity['project_name']); ?>"
+                 data-location="<?php echo safe($opportunity['location']); ?>"
+                 data-client="<?php echo safe($opportunity['client']); ?>"
+                 data-date-of-invitation="<?php echo safe($opportunity['date_of_invitation']); ?>"
+                 data-submission-date="<?php echo safe($opportunity['submission_date']); ?>"
+                 data-approval-status="<?php echo safe($opportunity['approval_status']); ?>"
+                 data-contact-person-name="<?php echo safe($opportunity['contact_person_name']); ?>"
+                 data-contact-person-title="<?php echo safe($opportunity['contact_person_title']); ?>"
+                 data-contact-person-phone="<?php echo safe($opportunity['contact_person_phone']); ?>"
+                 data-remarks="<?php echo safe($opportunity['remarks']); ?>"
+                 data-business-line-id="<?php echo safe($opportunity['business_line_id']); ?>"
+                 data-opportunity-owner-id="<?php echo safe($opportunity['opportunity_owner_id']); ?>"
+                 data-business-line-name="<?php echo safe($opportunity['business_line_name']); ?>"
+                 data-opportunity-owner-name="<?php echo safe($opportunity['opportunity_owner_name']); ?>"
+                 data-opportunity-file="<?php echo safe($opportunity['opportunity_file']); ?>">
               <span class="opportunity-flag <?php echo safe($flagClass); ?>" aria-label="Submission status">
                 <?php echo safe($flagLabel); ?>
               </span>
@@ -642,183 +718,201 @@ if ($error === '' && !$canRead) {
         <?php endif; ?>
       <?php endif; ?>
 
-      <?php foreach ($opportunities as $opportunity): ?>
-        <?php
-          $currentBusinessLine = (string) ($opportunity['business_line_id'] ?? '');
-          $currentOpportunityOwner = (string) ($opportunity['opportunity_owner_id'] ?? '');
-        ?>
-        <div class="message-modal project-modal" data-manage-modal="<?php echo safe($opportunity['business_dev_id']); ?>" role="dialog" aria-modal="true" aria-label="Manage opportunity <?php echo safe($opportunity['project_name']); ?>">
-          <div class="message-dialog">
-            <div class="message-dialog__header">
-              <span class="message-title">Manage <?php echo safe($opportunity['project_name']); ?></span>
-              <button class="message-close" type="button" aria-label="Close manage opportunity" data-close-modal>&times;</button>
-            </div>
-            <form id="update-form-<?php echo safe($opportunity['business_dev_id']); ?>" method="POST" action="business-development.php" style="display:grid; gap:12px;">
-              <input type="hidden" name="action" value="update" />
-              <input type="hidden" name="business_dev_id" value="<?php echo safe($opportunity['business_dev_id']); ?>" />
-              <table class="opportunity-manage-table">
-                <tr>
-                  <td>
-                    <div class="field">
-                      <label class="label" for="project-name-<?php echo safe($opportunity['business_dev_id']); ?>">Project Name</label>
-                      <input id="project-name-<?php echo safe($opportunity['business_dev_id']); ?>" name="project_name" type="text" value="<?php echo safe($opportunity['project_name']); ?>" required />
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field">
-                      <label class="label" for="location-<?php echo safe($opportunity['business_dev_id']); ?>">Location</label>
-                      <input id="location-<?php echo safe($opportunity['business_dev_id']); ?>" name="location" type="text" value="<?php echo safe($opportunity['location']); ?>" />
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div class="field">
-                      <label class="label" for="client-<?php echo safe($opportunity['business_dev_id']); ?>">Client</label>
-                      <input id="client-<?php echo safe($opportunity['business_dev_id']); ?>" name="client" type="text" value="<?php echo safe($opportunity['client']); ?>" />
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field">
-                      <label class="label" for="invitation-<?php echo safe($opportunity['business_dev_id']); ?>">Date of Invitation</label>
-                      <input id="invitation-<?php echo safe($opportunity['business_dev_id']); ?>" name="date_of_invitation" type="date" value="<?php echo safe($opportunity['date_of_invitation']); ?>" />
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div class="field">
-                      <label class="label" for="submission-<?php echo safe($opportunity['business_dev_id']); ?>">Submission Date</label>
-                      <input id="submission-<?php echo safe($opportunity['business_dev_id']); ?>" name="submission_date" type="date" value="<?php echo safe($opportunity['submission_date']); ?>" />
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field">
-                      <label class="label" for="contact-name-<?php echo safe($opportunity['business_dev_id']); ?>">Contact Person Name</label>
-                      <input id="contact-name-<?php echo safe($opportunity['business_dev_id']); ?>" name="contact_person_name" type="text" value="<?php echo safe($opportunity['contact_person_name']); ?>" />
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div class="field">
-                      <label class="label" for="contact-title-<?php echo safe($opportunity['business_dev_id']); ?>">Contact Person Title</label>
-                      <input id="contact-title-<?php echo safe($opportunity['business_dev_id']); ?>" name="contact_person_title" type="text" value="<?php echo safe($opportunity['contact_person_title']); ?>" />
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field">
-                      <label class="label" for="contact-phone-<?php echo safe($opportunity['business_dev_id']); ?>">Contact Person Phone</label>
-                      <input id="contact-phone-<?php echo safe($opportunity['business_dev_id']); ?>" name="contact_person_phone" type="text" value="<?php echo safe($opportunity['contact_person_phone']); ?>" />
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td colspan="2">
-                    <div class="field">
-                      <label class="label" for="remarks-<?php echo safe($opportunity['business_dev_id']); ?>">Remarks</label>
-                      <input id="remarks-<?php echo safe($opportunity['business_dev_id']); ?>" name="remarks" type="text" value="<?php echo safe($opportunity['remarks']); ?>" />
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div class="field"> 
-                      <label class="label" for="business-line-<?php echo safe($opportunity['business_dev_id']); ?>">Business Line</label> 
-                      <select id="business-line-<?php echo safe($opportunity['business_dev_id']); ?>" name="business_line_id" required> 
-                        <option value="">-- Select Business Line --</option> 
-                        <?php foreach ($businessLineOptions as $option): ?> 
-                          <option value="<?php echo safe($option['value']); ?>" <?php echo $currentBusinessLine === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-                        <?php endforeach; ?> 
-                      </select> 
-                    </div> 
-                  </td> 
-                  <td> 
-                    <div class="field"> 
-                      <label class="label" for="owner-<?php echo safe($opportunity['business_dev_id']); ?>">Opportunity Owner</label> 
-                      <select id="owner-<?php echo safe($opportunity['business_dev_id']); ?>" name="opportunity_owner_id" required> 
-                        <option value="">-- Select Opportunity Owner --</option> 
-                        <?php foreach ($opportunityOwnerOptions as $option): ?> 
-                          <option value="<?php echo safe($option['value']); ?>" <?php echo $currentOpportunityOwner === $option['value'] ? 'selected' : ''; ?>><?php echo safe($option['label']); ?></option>
-                        <?php endforeach; ?> 
-                      </select> 
-                    </div> 
-                  </td> 
-                </tr>
-              </table>
+      <div class="message-modal project-modal" id="manage-opportunity-modal" role="dialog" aria-modal="true" aria-label="Manage opportunity">
+        <div class="message-dialog">
+          <div class="message-dialog__header">
+            <span class="message-title" id="manage-opportunity-title">Manage opportunity</span>
+            <button class="message-close" type="button" aria-label="Close manage opportunity" data-close-modal>&times;</button>
+          </div>
+          <form id="update-form" method="POST" action="business-development.php" enctype="multipart/form-data" style="display:grid; gap:12px;">
+            <input type="hidden" name="action" value="update" />
+            <input type="hidden" name="business_dev_id" id="manage-business-dev-id" value="" />
+            <input type="hidden" name="current_opportunity_file" id="manage-current-file" value="" />
+            <table class="opportunity-manage-table">
+              <tr>
+                <td>
+                  <div class="field">
+                    <label class="label" for="manage-project-name">Project Name</label>
+                    <input id="manage-project-name" name="project_name" type="text" required />
+                  </div>
+                </td>
+                <td>
+                  <div class="field">
+                    <label class="label" for="manage-location">Location</label>
+                    <input id="manage-location" name="location" type="text" />
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="field">
+                    <label class="label" for="manage-client">Client</label>
+                    <input id="manage-client" name="client" type="text" />
+                  </div>
+                </td>
+                <td>
+                  <div class="field">
+                    <label class="label" for="manage-invitation">Date of Invitation</label>
+                    <input id="manage-invitation" name="date_of_invitation" type="date" />
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="field">
+                    <label class="label" for="manage-submission">Submission Date</label>
+                    <input id="manage-submission" name="submission_date" type="date" />
+                  </div>
+                </td>
+                <td>
+                  <div class="field">
+                    <label class="label" for="manage-approval-status">Approval Status</label>
+                    <input id="manage-approval-status" name="approval_status" type="text" />
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="field">
+                    <label class="label" for="manage-contact-name">Contact Person Name</label>
+                    <input id="manage-contact-name" name="contact_person_name" type="text" />
+                  </div>
+                </td>
+                <td>
+                  <div class="field">
+                    <label class="label" for="manage-contact-title">Contact Person Title</label>
+                    <input id="manage-contact-title" name="contact_person_title" type="text" />
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="field">
+                    <label class="label" for="manage-contact-phone">Contact Person Phone</label>
+                    <input id="manage-contact-phone" name="contact_person_phone" type="text" />
+                  </div>
+                </td>
+                <td>
+                  <div class="field">
+                    <label class="label" for="manage-remarks">Remarks</label>
+                    <input id="manage-remarks" name="remarks" type="text" />
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="field">
+                    <label class="label" for="manage-business-line">Business Line</label>
+                    <select id="manage-business-line" name="business_line_id" required>
+                      <option value="">-- Select Business Line --</option>
+                      <?php foreach ($businessLineOptions as $option): ?>
+                        <option value="<?php echo safe($option['value']); ?>"><?php echo safe($option['label']); ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                </td>
+                <td>
+                  <div class="field">
+                    <label class="label" for="manage-owner">Opportunity Owner</label>
+                    <select id="manage-owner" name="opportunity_owner_id" required>
+                      <option value="">-- Select Opportunity Owner --</option>
+                      <?php foreach ($opportunityOwnerOptions as $option): ?>
+                        <option value="<?php echo safe($option['value']); ?>"><?php echo safe($option['label']); ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td colspan="2">
+                  <div class="field">
+                    <label class="label" for="manage-opportunity-file">Upload/replace file</label>
+                    <input id="manage-opportunity-file" name="opportunity_file" type="file" />
+                    <small id="manage-current-file-link" style="color:var(--muted);"></small>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </form>
+          <?php if ($canDelete): ?>
+            <form id="delete-form" method="POST" action="business-development.php" onsubmit="return confirm('Delete this opportunity?');">
+              <input type="hidden" name="action" value="delete" />
+              <input type="hidden" name="business_dev_id" id="delete-business-dev-id" value="" />
             </form>
-            <?php if ($canDelete): ?>
-              <form id="delete-form-<?php echo safe($opportunity['business_dev_id']); ?>" method="POST" action="business-development.php" onsubmit="return confirm('Delete this opportunity?');">
-                <input type="hidden" name="action" value="delete" />
-                <input type="hidden" name="business_dev_id" value="<?php echo safe($opportunity['business_dev_id']); ?>" />
-              </form>
+          <?php endif; ?>
+          <div class="manage-actions">
+            <?php if ($canUpdate): ?>
+              <button class="btn btn-update" type="submit" form="update-form">Update opportunity</button>
             <?php endif; ?>
-            <div class="manage-actions">
-              <?php if ($canUpdate): ?>
-                <button class="btn btn-update" type="submit" form="update-form-<?php echo safe($opportunity['business_dev_id']); ?>">Update opportunity</button>
-              <?php endif; ?>
-              <?php if ($canDelete): ?>
-                <button class="btn btn-delete" type="submit" form="delete-form-<?php echo safe($opportunity['business_dev_id']); ?>">Delete opportunity</button>
-              <?php endif; ?>
-            </div>
+            <?php if ($canDelete): ?>
+              <button class="btn btn-delete" type="submit" form="delete-form">Delete opportunity</button>
+            <?php endif; ?>
           </div>
         </div>
+      </div>
 
-        <div class="message-modal project-modal" data-details-modal="<?php echo safe($opportunity['business_dev_id']); ?>" role="dialog" aria-modal="true" aria-label="Opportunity details for <?php echo safe($opportunity['project_name']); ?>">
-          <div class="message-dialog">
-            <div class="message-dialog__header">
-              <span class="message-title">Opportunity details</span>
-              <button class="message-close" type="button" aria-label="Close opportunity details" data-close-modal>&times;</button>
+      <div class="message-modal project-modal" id="details-opportunity-modal" role="dialog" aria-modal="true" aria-label="Opportunity details">
+        <div class="message-dialog">
+          <div class="message-dialog__header">
+            <span class="message-title">Opportunity details</span>
+            <button class="message-close" type="button" aria-label="Close opportunity details" data-close-modal>&times;</button>
+          </div>
+          <div class="details-grid">
+            <div class="details-grid__item">
+              <h5>Project name</h5>
+              <p data-detail="project_name">—</p>
             </div>
-            <div class="details-grid">
-              <div class="details-grid__item">
-                <h5>Project name</h5>
-                <p><?php echo safe($opportunity['project_name']); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Business line</h5>
-                <p><?php echo safe($opportunity['business_line_name'] ?: '—'); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Opportunity owner</h5>
-                <p><?php echo safe($opportunity['opportunity_owner_name'] ?: '—'); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Client</h5>
-                <p><?php echo safe($opportunity['client'] ?: '—'); ?></p>
-              </div>
-               <div class="details-grid__item">
-                <h5>Location</h5>
-                <p><?php echo safe($opportunity['location'] ?: '—'); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Date of invitation</h5>
-                <p><?php echo safe($opportunity['date_of_invitation'] ?: '—'); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Submission date</h5>
-                <p><?php echo safe($opportunity['submission_date'] ?: '—'); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Contact name</h5>
-                <p><?php echo safe($opportunity['contact_person_name'] ?: '—'); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Contact title</h5>
-                <p><?php echo safe($opportunity['contact_person_title'] ?: '—'); ?></p>
-              </div>
-              <div class="details-grid__item">
-                <h5>Contact phone</h5>
-                <p><?php echo safe($opportunity['contact_person_phone'] ?: '—'); ?></p>
-              </div>
-              <div class="details-grid__item" style="grid-column: 1 / -1;">
-                <h5>Remarks</h5>
-                <p><?php echo safe($opportunity['remarks'] ?: '—'); ?></p>
-              </div>
+            <div class="details-grid__item">
+              <h5>Business line</h5>
+              <p data-detail="business_line_name">—</p>
+            </div>
+            <div class="details-grid__item">
+              <h5>Opportunity owner</h5>
+              <p data-detail="opportunity_owner_name">—</p>
+            </div>
+            <div class="details-grid__item">
+              <h5>Client</h5>
+              <p data-detail="client">—</p>
+            </div>
+             <div class="details-grid__item">
+              <h5>Location</h5>
+              <p data-detail="location">—</p>
+            </div>
+            <div class="details-grid__item">
+              <h5>Date of invitation</h5>
+              <p data-detail="date_of_invitation">—</p>
+            </div>
+            <div class="details-grid__item">
+              <h5>Submission date</h5>
+              <p data-detail="submission_date">—</p>
+            </div>
+            <div class="details-grid__item">
+              <h5>Approval status</h5>
+              <p data-detail="approval_status">—</p>
+            </div>
+            <div class="details-grid__item">
+              <h5>Contact name</h5>
+              <p data-detail="contact_person_name">—</p>
+            </div>
+            <div class="details-grid__item">
+              <h5>Contact title</h5>
+              <p data-detail="contact_person_title">—</p>
+            </div>
+            <div class="details-grid__item">
+              <h5>Contact phone</h5>
+              <p data-detail="contact_person_phone">—</p>
+            </div>
+            <div class="details-grid__item" style="grid-column: 1 / -1;">
+              <h5>Remarks</h5>
+              <p data-detail="remarks">—</p>
+            </div>
+            <div class="details-grid__item" style="grid-column: 1 / -1;">
+              <h5>Uploaded file</h5>
+              <p data-detail="opportunity_file">—</p>
             </div>
           </div>
         </div>
-      <?php endforeach; ?>
+      </div>
     </div>
   </main>
 
@@ -829,7 +923,7 @@ if ($error === '' && !$canRead) {
           <span class="message-title">Create a new opportunity</span>
           <button class="message-close" type="button" aria-label="Close create opportunity" data-close-modal>&times;</button>
         </div>
-        <form method="POST" action="business-development.php" style="display:grid; gap:12px;">
+        <form method="POST" action="business-development.php" enctype="multipart/form-data" style="display:grid; gap:12px;">
           <input type="hidden" name="action" value="create" />
           <div class="opportunity-form-grid">
             <div>
@@ -852,6 +946,10 @@ if ($error === '' && !$canRead) {
             <div>
               <label class="label" for="submission-date">Submission Date</label>
               <input id="submission-date" name="submission_date" type="date" value="<?php echo safe($submitted['submission_date']); ?>" />
+            </div>
+            <div>
+              <label class="label" for="approval-status">Approval Status</label>
+              <input id="approval-status" name="approval_status" type="text" placeholder="Pending" value="<?php echo safe($submitted['approval_status']); ?>" />
             </div>
             <div>
               <label class="label" for="contact-person-name">Contact Person Name</label>
@@ -887,6 +985,10 @@ if ($error === '' && !$canRead) {
                 <?php endforeach; ?>
               </select>
             </div>
+            <div class="span-full">
+              <label class="label" for="opportunity-file">Attach file</label>
+              <input id="opportunity-file" name="opportunity_file" type="file" />
+            </div>
           </div>
           <div class="actions" style="justify-content:flex-end; gap:10px;">
             <button class="btn" type="button" data-close-modal>Cancel</button>
@@ -902,6 +1004,13 @@ if ($error === '' && !$canRead) {
       const closeButtons = document.querySelectorAll('[data-close-modal]');
       const openCreateButtons = document.querySelectorAll('[data-open-create]');
       const createModal = document.getElementById('create-opportunity-modal');
+      const manageModal = document.getElementById('manage-opportunity-modal');
+      const detailsModal = document.getElementById('details-opportunity-modal');
+      const manageTitle = document.getElementById('manage-opportunity-title');
+      const manageForm = document.getElementById('update-form');
+      const manageCurrentFile = document.getElementById('manage-current-file');
+      const manageCurrentFileLink = document.getElementById('manage-current-file-link');
+      const deleteBusinessDevId = document.getElementById('delete-business-dev-id');
 
       const hideModal = (modal) => {
         if (modal) {
@@ -939,19 +1048,105 @@ if ($error === '' && !$canRead) {
       openCreateButtons.forEach((button) => button.addEventListener('click', () => showModal(createModal)));
 
       document.querySelectorAll('[data-open-manage]').forEach((button) => {
-        const target = button.getAttribute('data-open-manage');
-        const modal = document.querySelector(`[data-manage-modal="${target}"]`);
-        if (!modal) return;
+        button.addEventListener('click', () => {
+          const card = button.closest('.opportunity-card');
+          if (!card) return;
+          const data = card.dataset;
 
-        button.addEventListener('click', () => showModal(modal));
+          if (manageTitle) {
+            manageTitle.textContent = `Manage ${data.projectName || 'opportunity'}`;
+          }
+
+          const fieldMap = {
+            'manage-business-dev-id': data.opportunityId,
+            'manage-project-name': data.projectName,
+            'manage-location': data.location,
+            'manage-client': data.client,
+            'manage-invitation': data.dateOfInvitation,
+            'manage-submission': data.submissionDate,
+            'manage-approval-status': data.approvalStatus,
+            'manage-contact-name': data.contactPersonName,
+            'manage-contact-title': data.contactPersonTitle,
+            'manage-contact-phone': data.contactPersonPhone,
+            'manage-remarks': data.remarks
+          };
+
+          const businessLineSelect = document.getElementById('manage-business-line');
+          const ownerSelect = document.getElementById('manage-owner');
+
+          if (manageForm) {
+            manageForm.reset();
+            Object.entries(fieldMap).forEach(([id, value]) => {
+              const input = document.getElementById(id);
+              if (input) {
+                input.value = value || '';
+              }
+            });
+            if (businessLineSelect) {
+              businessLineSelect.value = data.businessLineId || '';
+            }
+            if (ownerSelect) {
+              ownerSelect.value = data.opportunityOwnerId || '';
+            }
+          }
+
+          if (manageCurrentFile) {
+            manageCurrentFile.value = data.opportunityFile || '';
+          }
+
+          if (manageCurrentFileLink) {
+            if (data.opportunityFile) {
+              manageCurrentFileLink.innerHTML = `<a href="${data.opportunityFile}" target="_blank" rel="noopener">View current file</a>`;
+            } else {
+              manageCurrentFileLink.textContent = 'No file uploaded yet.';
+            }
+          }
+
+          if (deleteBusinessDevId) {
+            deleteBusinessDevId.value = data.opportunityId || '';
+          }
+
+          showModal(manageModal);
+        });
       });
 
       document.querySelectorAll('[data-open-details]').forEach((button) => {
-        const target = button.getAttribute('data-open-details');
-        const modal = document.querySelector(`[data-details-modal="${target}"]`);
-        if (!modal) return;
+        button.addEventListener('click', () => {
+          const card = button.closest('.opportunity-card');
+          if (!card) return;
+          const data = card.dataset;
+          const detailMap = {
+            project_name: data.projectName,
+            business_line_name: data.businessLineName,
+            opportunity_owner_name: data.opportunityOwnerName,
+            client: data.client,
+            location: data.location,
+            date_of_invitation: data.dateOfInvitation,
+            submission_date: data.submissionDate,
+            approval_status: data.approvalStatus,
+            contact_person_name: data.contactPersonName,
+            contact_person_title: data.contactPersonTitle,
+            contact_person_phone: data.contactPersonPhone,
+            remarks: data.remarks,
+            opportunity_file: data.opportunityFile
+          };
 
-        button.addEventListener('click', () => showModal(modal));
+          Object.entries(detailMap).forEach(([key, value]) => {
+            const target = detailsModal?.querySelector(`[data-detail="${key}"]`);
+            if (!target) return;
+            if (key === 'opportunity_file') {
+              if (value) {
+                target.innerHTML = `<a href="${value}" target="_blank" rel="noopener">View or download file</a>`;
+              } else {
+                target.textContent = '—';
+              }
+              return;
+            }
+            target.textContent = value || '—';
+          });
+
+          showModal(detailsModal);
+        });
       });
     });
   </script>
