@@ -146,7 +146,7 @@ $submitted = [
     'client' => trim($_POST['client'] ?? ''),
     'date_of_invitation' => trim($_POST['date_of_invitation'] ?? ''),
     'submission_date' => trim($_POST['submission_date'] ?? ''),
-    'approval_status' => trim($_POST['approval_status'] ?? ''),
+    'approvalstatus' => trim($_POST['approvalstatus'] ?? ''),
     'contact_person_name' => trim($_POST['contact_person_name'] ?? ''),
     'contact_person_title' => trim($_POST['contact_person_title'] ?? ''),
     'contact_person_phone' => trim($_POST['contact_person_phone'] ?? ''),
@@ -199,7 +199,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                    AND client IS NOT DISTINCT FROM NULLIF(:client, '')
                    AND date_of_invitation IS NOT DISTINCT FROM NULLIF(:date_of_invitation, '')::date
                    AND submission_date IS NOT DISTINCT FROM NULLIF(:submission_date, '')::date
-                   AND Approval_Status IS NOT DISTINCT FROM NULLIF(:approval_status, '')
+                   AND approvalstatus IS NOT DISTINCT FROM NULLIF(:approvalstatus, '')
                    AND contact_person_name IS NOT DISTINCT FROM NULLIF(:contact_person_name, '')
                    AND contact_person_title IS NOT DISTINCT FROM NULLIF(:contact_person_title, '')
                    AND contact_person_phone IS NOT DISTINCT FROM NULLIF(:contact_person_phone, '')
@@ -214,7 +214,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':client' => $submitted['client'],
                 ':date_of_invitation' => $submitted['date_of_invitation'],
                 ':submission_date' => $submitted['submission_date'],
-                ':approval_status' => $submitted['approval_status'],
+                ':approvalstatus' => $submitted['approvalstatus'],
                 ':contact_person_name' => $submitted['contact_person_name'],
                 ':contact_person_title' => $submitted['contact_person_title'],
                 ':contact_person_phone' => $submitted['contact_person_phone'],
@@ -228,8 +228,8 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $stmt = $pdo->prepare(
-                "INSERT INTO business_development (project_name, location, client, date_of_invitation, submission_date, \"Approval_Status\", contact_person_name, contact_person_title, contact_person_phone, remarks, business_line_id, opportunity_owner_id, opportunity_file)
-                 VALUES (:project_name, NULLIF(:location, ''), NULLIF(:client, ''), NULLIF(:date_of_invitation, '')::date, NULLIF(:submission_date, '')::date, NULLIF(:approval_status, ''), NULLIF(:contact_person_name, ''), NULLIF(:contact_person_title, ''), NULLIF(:contact_person_phone, ''), NULLIF(:remarks, ''), :business_line_id, :opportunity_owner_id, NULLIF(:opportunity_file, ''))"
+                "INSERT INTO business_development (project_name, location, client, date_of_invitation, submission_date, \"approvalstatus\", contact_person_name, contact_person_title, contact_person_phone, remarks, business_line_id, opportunity_owner_id, opportunity_file)
+                 VALUES (:project_name, NULLIF(:location, ''), NULLIF(:client, ''), NULLIF(:date_of_invitation, '')::date, NULLIF(:submission_date, '')::date, NULLIF(:approvalstatus, ''), NULLIF(:contact_person_name, ''), NULLIF(:contact_person_title, ''), NULLIF(:contact_person_phone, ''), NULLIF(:remarks, ''), :business_line_id, :opportunity_owner_id, NULLIF(:opportunity_file, ''))"
             );
             $stmt->execute([
                 ':project_name' => $submitted['project_name'],
@@ -237,7 +237,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':client' => $submitted['client'],
                 ':date_of_invitation' => $submitted['date_of_invitation'],
                 ':submission_date' => $submitted['submission_date'],
-                ':approval_status' => $submitted['approval_status'],
+                ':approvalstatus' => $submitted['approvalstatus'],
                 ':contact_person_name' => $submitted['contact_person_name'],
                 ':contact_person_title' => $submitted['contact_person_title'],
                 ':contact_person_phone' => $submitted['contact_person_phone'],
@@ -254,7 +254,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'Client' => $submitted['client'] ?: '—',
                 'Invitation date' => $submitted['date_of_invitation'] ?: '—',
                 'Submission date' => $submitted['submission_date'] ?: '—',
-                'Approval status' => $submitted['approval_status'] ?: '—',
+                'Approval status' => $submitted['approvalstatus'] ?: '—',
                 'Contact' => $submitted['contact_person_name'] ?: '—',
                 'Business line' => option_label($businessLineOptions, $submitted['business_line_id']),
                 'Opportunity owner' => option_label($opportunityOwnerOptions, $submitted['opportunity_owner_id']),
@@ -305,7 +305,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                      client = NULLIF(:client, ''),
                      date_of_invitation = NULLIF(:date_of_invitation, '')::date,
                      submission_date = NULLIF(:submission_date, '')::date,
-                     Approval_Status = NULLIF(:approval_status, ''),
+                     approvalstatus = NULLIF(:approvalstatus, ''),
                      contact_person_name = NULLIF(:contact_person_name, ''),
                      contact_person_title = NULLIF(:contact_person_title, ''),
                      contact_person_phone = NULLIF(:contact_person_phone, ''),
@@ -322,7 +322,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':client' => $submitted['client'],
                 ':date_of_invitation' => $submitted['date_of_invitation'],
                 ':submission_date' => $submitted['submission_date'],
-                ':approval_status' => $submitted['approval_status'],
+                ':approvalstatus' => $submitted['approvalstatus'],
                 ':contact_person_name' => $submitted['contact_person_name'],
                 ':contact_person_title' => $submitted['contact_person_title'],
                 ':contact_person_phone' => $submitted['contact_person_phone'],
@@ -402,7 +402,7 @@ if ($pdo && $canRead) {
             $visibleCount = $totalOpportunities;
         }
 
-        $sql = "SELECT bd.business_dev_id, bd.project_name, bd.location, bd.client, bd.date_of_invitation, bd.submission_date, bd.\"Approval_Status\" AS approval_status, bd.contact_person_name, bd.contact_person_title, bd.contact_person_phone, bd.remarks, bd.business_line_id, bd.opportunity_owner_id, bd.opportunity_file,
+        $sql = "SELECT bd.business_dev_id, bd.project_name, bd.location, bd.client, bd.date_of_invitation, bd.submission_date, bd.\"approvalstatus\" AS approvalstatus, bd.contact_person_name, bd.contact_person_title, bd.contact_person_phone, bd.remarks, bd.business_line_id, bd.opportunity_owner_id, bd.opportunity_file,
                        COALESCE(bl.business_line_name, '') AS business_line_name,
                        COALESCE(oo.opportunity_owner_name, '') AS opportunity_owner_name
                 FROM business_development bd
@@ -738,7 +738,7 @@ if ($error === '' && !$canRead) {
                  data-client="<?php echo safe($opportunity['client']); ?>"
                  data-date-of-invitation="<?php echo safe($opportunity['date_of_invitation']); ?>"
                  data-submission-date="<?php echo safe($opportunity['submission_date']); ?>"
-                 data-approval-status="<?php echo safe($opportunity['approval_status']); ?>"
+                 data-approval-status="<?php echo safe($opportunity['approvalstatus']); ?>"
                  data-contact-person-name="<?php echo safe($opportunity['contact_person_name']); ?>"
                  data-contact-person-title="<?php echo safe($opportunity['contact_person_title']); ?>"
                  data-contact-person-phone="<?php echo safe($opportunity['contact_person_phone']); ?>"
@@ -841,7 +841,7 @@ if ($error === '' && !$canRead) {
                 <td>
                   <div class="field">
                     <label class="label" for="manage-approval-status">Approval Status</label>
-                    <input id="manage-approval-status" name="approval_status" type="text" />
+                    <input id="manage-approval-status" name="approvalstatus" type="text" />
                   </div>
                 </td>
               </tr>
@@ -962,7 +962,7 @@ if ($error === '' && !$canRead) {
             </div>
             <div class="details-grid__item">
               <h5>Approval status</h5>
-              <p data-detail="approval_status">—</p>
+              <p data-detail="approvalstatus">—</p>
             </div>
             <div class="details-grid__item">
               <h5>Contact name</h5>
@@ -1023,7 +1023,7 @@ if ($error === '' && !$canRead) {
             </div>
             <div>
               <label class="label" for="approval-status">Approval Status</label>
-              <input id="approval-status" name="approval_status" type="text" placeholder="Pending" value="<?php echo safe($submitted['approval_status']); ?>" />
+              <input id="approval-status" name="approvalstatus" type="text" placeholder="Pending" value="<?php echo safe($submitted['approvalstatus']); ?>" />
             </div>
             <div>
               <label class="label" for="contact-person-name">Contact Person Name</label>
@@ -1214,7 +1214,7 @@ if ($error === '' && !$canRead) {
             location: data.location,
             date_of_invitation: data.dateOfInvitation,
             submission_date: data.submissionDate,
-            approval_status: data.approvalStatus,
+            approvalstatus: data.approvalStatus,
             contact_person_name: data.contactPersonName,
             contact_person_title: data.contactPersonTitle,
             contact_person_phone: data.contactPersonPhone,
