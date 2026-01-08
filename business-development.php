@@ -8,6 +8,7 @@ $error = '';
 $success = '';
 $successHtml = '';
 $modalOverride = null;
+$metabaseUrl = getenv('METABASE_URL') ?: 'https://metabase.example.com';
 
 $pdo = null;
 try {
@@ -140,7 +141,7 @@ if ($pdo && $_SERVER['REQUEST_METHOD'] === 'POST') {
                      location = NULLIF(:location, ''),
                      client = NULLIF(:client, ''),
                      consultant = NULLIF(:consultant, ''),
-                     status = NULLIF(:status, ''),
+                      status = COALESCE(NULLIF(:status, ''), status),
                      date_of_invitation = NULLIF(:date_of_invitation, '')::date,
                      submission_date = NULLIF(:submission_date, '')::date,
                      contact_person_name = NULLIF(:contact_person_name, ''),
@@ -380,9 +381,15 @@ if ($pdo) {
       color: var(--secondary);
     }
 
-    .message-table tr:last-child th,
+     .message-table tr:last-child th,
     .message-table tr:last-child td {
       border-bottom: none;
+    }
+
+    .project-modal .message-dialog {
+      max-width: 760px;
+      max-height: 70vh;
+      overflow-y: auto;
     }
   </style>
 </head>
@@ -425,9 +432,11 @@ if ($pdo) {
           <h3 style="margin:0; color:var(--secondary);">Create, view, update or delete opportunities</h3>
           <p style="margin:6px 0 0; color:var(--muted);">Use the create button to add opportunities, then manage or review them from the cards below.</p>
         </div>
-        <button class="btn btn-save" type="button" data-open-create style="white-space:nowrap;">Create opportunity</button>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-save" type="button" data-open-create style="white-space:nowrap;">Create opportunity</button>
+          <a class="btn btn-update" href="<?php echo safe($metabaseUrl); ?>" target="_blank" rel="noopener" style="white-space:nowrap; text-decoration:none;">Dashboard</a>
+        </div>
       </div>
-
       <form method="GET" action="business-development.php" class="filter-form" style="display:grid; gap:10px;">
         <div class="form-row" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
           <div style="flex:1; min-width:200px;">
@@ -514,10 +523,7 @@ if ($pdo) {
                   <label class="label" for="consultant-<?php echo safe($opportunity['business_dev_id']); ?>">Consultant</label>
                   <input id="consultant-<?php echo safe($opportunity['business_dev_id']); ?>" name="consultant" type="text" value="<?php echo safe($opportunity['consultant']); ?>" />
                 </div>
-                <div>
-                  <label class="label" for="status-<?php echo safe($opportunity['business_dev_id']); ?>">Status</label>
-                  <input id="status-<?php echo safe($opportunity['business_dev_id']); ?>" name="status" type="text" value="<?php echo safe($opportunity['status']); ?>" />
-                </div>
+            
                 <div>
                   <label class="label" for="invitation-<?php echo safe($opportunity['business_dev_id']); ?>">Date of Invitation</label>
                   <input id="invitation-<?php echo safe($opportunity['business_dev_id']); ?>" name="date_of_invitation" type="date" value="<?php echo safe($opportunity['date_of_invitation']); ?>" />
@@ -664,10 +670,7 @@ if ($pdo) {
             <label class="label" for="consultant">Consultant</label>
             <input id="consultant" name="consultant" type="text" placeholder="Consultant name" value="<?php echo safe($submitted['consultant']); ?>" />
           </div>
-          <div>
-            <label class="label" for="status">Status</label>
-            <input id="status" name="status" type="text" placeholder="Pending" value="<?php echo safe($submitted['status']); ?>" />
-          </div>
+          
           <div>
             <label class="label" for="date-of-invitation">Date of Invitation</label>
             <input id="date-of-invitation" name="date_of_invitation" type="date" value="<?php echo safe($submitted['date_of_invitation']); ?>" />
