@@ -590,6 +590,10 @@ if ($error === '' && !$canRead) {
       position: relative;
     }
 
+    .checkbox-dropdown.is-open {
+      z-index: 40;
+    }
+
     .checkbox-dropdown__toggle {
       width: 100%;
       text-align: left;
@@ -613,13 +617,13 @@ if ($error === '' && !$canRead) {
       right: 0;
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: var(--surface);
+      background: #fff;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
       padding: 8px;
       display: none;
       max-height: 220px;
       overflow-y: auto;
-      z-index: 20;
+      z-index: 11000;
     }
 
     .checkbox-dropdown.is-open .checkbox-dropdown__menu {
@@ -632,6 +636,9 @@ if ($error === '' && !$canRead) {
       align-items: center;
       gap: 8px;
       font-size: 14px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: var(--surface);
     }
 
     .checkbox-dropdown__option input[type="checkbox"] {
