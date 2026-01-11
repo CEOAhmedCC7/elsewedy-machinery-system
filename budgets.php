@@ -153,16 +153,6 @@ $submitted = [
     'project_id' => trim($_POST['project_id'] ?? ''),
     'batch_id' => trim($_POST['batch_id'] ?? ''),
     'sub_batch_detail_id' => trim($_POST['sub_batch_detail_id'] ?? ''),
-    'costtype' => trim($_POST['costtype'] ?? '') ?: ($costTypes[''] ?? ''),
-    'revenue_amount' => trim($_POST['revenue_amount'] ?? ''),
-    'revenue_currency' => trim($_POST['revenue_currency'] ?? 'EGP'),
-    'revenue_exchange_rate' => trim($_POST['revenue_exchange_rate'] ?? ''),
-    'freight_amount' => trim($_POST['freight_amount'] ?? ''),
-    'freight_currency' => trim($_POST['freight_currency'] ?? 'EGP'),
-    'freight_exchange_rate' => trim($_POST['freight_exchange_rate'] ?? ''),
-    'supplier_cost_amount' => trim($_POST['supplier_cost_amount'] ?? ''),
-    'supplier_cost_currency' => trim($_POST['supplier_cost_currency'] ?? 'EGP'),
-    'supplier_cost_exchange_rate' => trim($_POST['supplier_cost_exchange_rate'] ?? ''),
 ];
 
 $selectedIds = array_filter(array_map('trim', (array) ($_POST['selected_ids'] ?? [])));
@@ -182,9 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         if ($action === 'create') {
-            if ($submitted['costtype'] === '') {
-                $error = 'Cost type is required.';
-            } elseif ($linkProject === '' && $linkBatch === '' && $linkSubBatch === '') {
+            if ($linkProject === '' && $linkBatch === '' && $linkSubBatch === '') {
                 $error = 'Select a project, batch, or sub-batch for this budget.';
             } else {
                 $budgetId = null;
@@ -211,48 +199,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'project_id',
                         'batch_id',
                         'sub_batch_detail_id',
-                        'costtype',
-                        'revenue_amount',
-                        'revenue_currency',
-                        'revenue_exchange_rate',
-                        'freight_amount',
-                        'freight_currency',
-                        'freight_exchange_rate',
-                        'supplier_cost_amount',
-                        'supplier_cost_currency',
-                        'supplier_cost_exchange_rate',
                     ];
 
                     $placeholders = [
                         ':project',
                         ':batch',
                         ':sub_batch',
-                        ':costtype',
-                        ':rev_amount',
-                        ':rev_currency',
-                        ':rev_rate',
-                        ':freight_amount',
-                        ':freight_currency',
-                        ':freight_rate',
-                        ':supplier_amount',
-                        ':supplier_currency',
-                        ':supplier_rate',
                     ];
 
                     $params = [
                         ':project' => $linkProject !== '' ? $linkProject : null,
                         ':batch' => $linkBatch !== '' ? $linkBatch : null,
                         ':sub_batch' => $linkSubBatch !== '' ? $linkSubBatch : null,
-                        ':costtype' => $submitted['costtype'],
-                        ':rev_amount' => $submitted['revenue_amount'] !== '' ? $submitted['revenue_amount'] : null,
-                        ':rev_currency' => $submitted['revenue_currency'] ?: null,
-                        ':rev_rate' => $submitted['revenue_exchange_rate'] !== '' ? $submitted['revenue_exchange_rate'] : null,
-                        ':freight_amount' => $submitted['freight_amount'] !== '' ? $submitted['freight_amount'] : null,
-                        ':freight_currency' => $submitted['freight_currency'] ?: null,
-                        ':freight_rate' => $submitted['freight_exchange_rate'] !== '' ? $submitted['freight_exchange_rate'] : null,
-                        ':supplier_amount' => $submitted['supplier_cost_amount'] !== '' ? $submitted['supplier_cost_amount'] : null,
-                        ':supplier_currency' => $submitted['supplier_cost_currency'] ?: null,
-                        ':supplier_rate' => $submitted['supplier_cost_exchange_rate'] !== '' ? $submitted['supplier_cost_exchange_rate'] : null,
                     ];
 
                     if ($budgetId !== null) {
@@ -299,13 +257,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'project_id' => '',
                         'batch_id' => '',
                         'sub_batch_detail_id' => '',
-                        'costtype' => '',
-                        'revenue_amount' => '',
-                        'revenue_exchange_rate' => '',
-                        'freight_amount' => '',
-                        'freight_exchange_rate' => '',
-                        'supplier_cost_amount' => '',
-                        'supplier_cost_exchange_rate' => '',
                     ]);
                     $submittedItems = [];
                 }
@@ -313,27 +264,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'update') {
             if ($submitted['budget_id'] === '') {
                 $error = 'Enter the Budget ID to update.';
-            } elseif ($submitted['costtype'] === '') {
-                $error = 'Cost type is required.';
             } elseif ($linkProject === '' && $linkBatch === '' && $linkSubBatch === '') {
                 $error = 'Select a project, batch, or sub-batch for this budget.';
             } else {
-                $stmt = $pdo->prepare('UPDATE budgets SET project_id = :project, batch_id = :batch, sub_batch_detail_id = :sub_batch, costtype = :costtype, revenue_amount = :rev_amount, revenue_currency = :rev_currency, revenue_exchange_rate = :rev_rate, freight_amount = :freight_amount, freight_currency = :freight_currency, freight_exchange_rate = :freight_rate, supplier_cost_amount = :supplier_amount, supplier_cost_currency = :supplier_currency, supplier_cost_exchange_rate = :supplier_rate WHERE budget_id = :id');
+                $stmt = $pdo->prepare('UPDATE budgets SET project_id = :project, batch_id = :batch, sub_batch_detail_id = :sub_batch WHERE budget_id = :id');
                 $stmt->execute([
                     ':id' => $submitted['budget_id'],
                     ':project' => $linkProject !== '' ? $linkProject : null,
                     ':batch' => $linkBatch !== '' ? $linkBatch : null,
                     ':sub_batch' => $linkSubBatch !== '' ? $linkSubBatch : null,
-                    ':costtype' => $submitted['costtype'],
-                    ':rev_amount' => $submitted['revenue_amount'] !== '' ? $submitted['revenue_amount'] : null,
-                    ':rev_currency' => $submitted['revenue_currency'] ?: null,
-                    ':rev_rate' => $submitted['revenue_exchange_rate'] !== '' ? $submitted['revenue_exchange_rate'] : null,
-                    ':freight_amount' => $submitted['freight_amount'] !== '' ? $submitted['freight_amount'] : null,
-                    ':freight_currency' => $submitted['freight_currency'] ?: null,
-                    ':freight_rate' => $submitted['freight_exchange_rate'] !== '' ? $submitted['freight_exchange_rate'] : null,
-                    ':supplier_amount' => $submitted['supplier_cost_amount'] !== '' ? $submitted['supplier_cost_amount'] : null,
-                    ':supplier_currency' => $submitted['supplier_cost_currency'] ?: null,
-                    ':supplier_rate' => $submitted['supplier_cost_exchange_rate'] !== '' ? $submitted['supplier_cost_exchange_rate'] : null,
                 ]);
 
 
@@ -416,13 +355,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'project_id' => '',
                         'batch_id' => '',
                         'sub_batch_detail_id' => '',
-                        'costtype' => '',
-                        'revenue_amount' => '',
-                        'revenue_exchange_rate' => '',
-                        'freight_amount' => '',
-                        'freight_exchange_rate' => '',
-                        'supplier_cost_amount' => '',
-                        'supplier_cost_exchange_rate' => '',
                     ]);
                 }
             }
@@ -924,63 +856,6 @@ $subBatchDataForJs = array_map(
                     <?php endforeach; ?>
                   </select>
                 </div>
-                <div>
-                  <label class="label" for="cost-type-<?php echo safe($budget['budget_id']); ?>">Cost Type</label>
-                  <select id="cost-type-<?php echo safe($budget['budget_id']); ?>" name="costtype" required>
-                    <option value="">-- Select Cost Type --</option>
-                    <?php foreach ($costTypes as $type): ?>
-                      <option value="<?php echo safe($type); ?>" <?php echo $budget['costtype'] === $type ? 'selected' : ''; ?>><?php echo safe($type); ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <div>
-                  <label class="label" for="revenue-amount-<?php echo safe($budget['budget_id']); ?>">Revenue Amount</label>
-                  <input id="revenue-amount-<?php echo safe($budget['budget_id']); ?>" name="revenue_amount" type="number" step="0.01" value="<?php echo safe($budget['revenue_amount']); ?>" />
-                </div>
-                <div>
-                  <label class="label" for="revenue-currency-<?php echo safe($budget['budget_id']); ?>">Revenue Currency</label>
-                  <select id="revenue-currency-<?php echo safe($budget['budget_id']); ?>" name="revenue_currency">
-                    <?php foreach (['EGP','USD','EUR'] as $currency): ?>
-                      <option value="<?php echo $currency; ?>" <?php echo ($budget['revenue_currency'] ?? 'EGP') === $currency ? 'selected' : ''; ?>><?php echo $currency; ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <div>
-                  <label class="label" for="revenue-rate-<?php echo safe($budget['budget_id']); ?>">Revenue Exchange Rate</label>
-                  <input id="revenue-rate-<?php echo safe($budget['budget_id']); ?>" name="revenue_exchange_rate" type="number" step="0.0001" value="<?php echo safe($budget['revenue_exchange_rate']); ?>" />
-                </div>
-                <div>
-                  <label class="label" for="freight-amount-<?php echo safe($budget['budget_id']); ?>">Freight Amount</label>
-                  <input id="freight-amount-<?php echo safe($budget['budget_id']); ?>" name="freight_amount" type="number" step="0.01" value="<?php echo safe($budget['freight_amount']); ?>" />
-                </div>
-                <div>
-                  <label class="label" for="freight-currency-<?php echo safe($budget['budget_id']); ?>">Freight Currency</label>
-                  <select id="freight-currency-<?php echo safe($budget['budget_id']); ?>" name="freight_currency">
-                    <?php foreach (['EGP','USD','EUR'] as $currency): ?>
-                      <option value="<?php echo $currency; ?>" <?php echo ($budget['freight_currency'] ?? 'EGP') === $currency ? 'selected' : ''; ?>><?php echo $currency; ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <div>
-                  <label class="label" for="freight-rate-<?php echo safe($budget['budget_id']); ?>">Freight Exchange Rate</label>
-                  <input id="freight-rate-<?php echo safe($budget['budget_id']); ?>" name="freight_exchange_rate" type="number" step="0.0001" value="<?php echo safe($budget['freight_exchange_rate']); ?>" />
-                </div>
-                <div>
-                  <label class="label" for="supplier-cost-<?php echo safe($budget['budget_id']); ?>">Supplier Cost Amount</label>
-                  <input id="supplier-cost-<?php echo safe($budget['budget_id']); ?>" name="supplier_cost_amount" type="number" step="0.01" value="<?php echo safe($budget['supplier_cost_amount']); ?>" />
-                </div>
-                <div>
-                  <label class="label" for="supplier-currency-<?php echo safe($budget['budget_id']); ?>">Supplier Currency</label>
-                  <select id="supplier-currency-<?php echo safe($budget['budget_id']); ?>" name="supplier_cost_currency">
-                    <?php foreach (['EGP','USD','EUR'] as $currency): ?>
-                      <option value="<?php echo $currency; ?>" <?php echo ($budget['supplier_cost_currency'] ?? 'EGP') === $currency ? 'selected' : ''; ?>><?php echo $currency; ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                 <div>
-                  <label class="label" for="supplier-rate-<?php echo safe($budget['budget_id']); ?>">Supplier Exchange Rate</label>
-                  <input id="supplier-rate-<?php echo safe($budget['budget_id']); ?>" name="supplier_cost_exchange_rate" type="number" step="0.0001" value="<?php echo safe($budget['supplier_cost_exchange_rate']); ?>" />
-                </div>
               </div>
               <?php $budgetItems = $itemsByBudget[$budget['budget_id']] ?? []; ?>
              <div data-item-section>
@@ -1134,7 +1009,7 @@ $subBatchDataForJs = array_map(
               <button class="message-close" type="button" aria-label="Close budget details" data-close-modal>&times;</button>
             </div>
             <?php
-              $scope = $budget['project_id'] ? 'Project' : 'Sub-batch';
+              $scope = $budget['sub_batch_detail_id'] ? 'Sub-batch' : ($budget['batch_id'] ? 'Batch' : 'Project');
               $projectName = $budget['project_name'] ?: ($budget['batch_project_name'] ?? '');
               $batchName = $budget['batch_name'] ?? '';
               $subBatchName = $budget['sub_batch_name'] ?? '';
@@ -1165,34 +1040,6 @@ $subBatchDataForJs = array_map(
                   <tr>
                     <th scope="row">Business line</th>
                     <td><?php echo safe($budget['business_line_name'] ?? '—'); ?></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Cost type</th>
-                    <td><?php echo safe($budget['costtype'] ?: '—'); ?></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Revenue</th>
-                    <td><?php echo safe(($budget['revenue_currency'] ?? '') . ' ' . ($budget['revenue_amount'] ?? '')); ?></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Freight</th>
-                    <td><?php echo safe(($budget['freight_currency'] ?? '') . ' ' . ($budget['freight_amount'] ?? '')); ?></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Supplier</th>
-                    <td><?php echo safe(($budget['supplier_cost_currency'] ?? '') . ' ' . ($budget['supplier_cost_amount'] ?? '')); ?></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Revenue exchange rate</th>
-                    <td><?php echo safe($budget['revenue_exchange_rate'] ?? '—'); ?></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Freight exchange rate</th>
-                    <td><?php echo safe($budget['freight_exchange_rate'] ?? '—'); ?></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Supplier exchange rate</th>
-                    <td><?php echo safe($budget['supplier_cost_exchange_rate'] ?? '—'); ?></td>
                   </tr>
                   <tr>
                     <th scope="row">Created at</th>
@@ -1286,7 +1133,6 @@ $subBatchDataForJs = array_map(
               <?php endforeach; ?>
             </select>
           </div>
-            <input type="hidden" name="costtype" value="<?php echo safe($submitted['costtype'] ?: ($costTypes[0] ?? '')); ?>" />
         </div>
         <?php $createItems = $submittedItems ?: [[]]; ?>
        <div data-item-section>
@@ -1377,7 +1223,7 @@ $subBatchDataForJs = array_map(
 
   <table id="budgets-table" style="display:none;">
     <thead>
-      <tr><th>ID</th><th>Project</th><th>Scope</th><th>Link</th><th>Business Line</th><th>Cost Type</th><th>Revenue</th><th>Freight</th><th>Supplier Cost</th><th>Created at</th></tr>
+      <tr><th>ID</th><th>Project</th><th>Scope</th><th>Link</th><th>Business Line</th><th>Created at</th></tr>
     </thead>
     <tbody>
       <?php foreach ($budgets as $budget): ?>
@@ -1395,10 +1241,6 @@ $subBatchDataForJs = array_map(
           <td><?php echo safe($scope); ?></td>
           <td><?php echo safe($linkLabel ?: $linkId ?: '—'); ?></td>
           <td><?php echo safe($budget['business_line_name'] ?? '—'); ?></td>
-          <td><?php echo safe($budget['costtype']); ?></td>
-          <td><?php echo safe(($budget['revenue_currency'] ?? '') . ' ' . ($budget['revenue_amount'] ?? '')); ?></td>
-          <td><?php echo safe(($budget['freight_currency'] ?? '') . ' ' . ($budget['freight_amount'] ?? '')); ?></td>
-          <td><?php echo safe(($budget['supplier_cost_currency'] ?? '') . ' ' . ($budget['supplier_cost_amount'] ?? '')); ?></td>
           <td><?php echo safe($budget['created_at'] ?? ''); ?></td>
         </tr>
       <?php endforeach; ?>
