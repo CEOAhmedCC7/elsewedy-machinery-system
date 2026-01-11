@@ -339,17 +339,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $success = 'Budget updated successfully.';
                 }
             }
-        } elseif ($action === 'delete') {
+         } elseif ($action === 'delete') {
             if ($submitted['budget_id'] === '') {
                 $error = 'Enter a Budget ID to delete.';
             } else {
+                $pdo->beginTransaction();
+                $deleteItemsStmt = $pdo->prepare('DELETE FROM items WHERE budget_id = :id');
+                $deleteItemsStmt->execute([':id' => $submitted['budget_id']]);
+
                 $stmt = $pdo->prepare('DELETE FROM budgets WHERE budget_id = :id');
                 $stmt->execute([':id' => $submitted['budget_id']]);
 
                 if ($stmt->rowCount() === 0) {
+                    $pdo->rollBack();
                     $error = 'Budget not found or already deleted.';
                 } else {
-                   $success = 'Budget deleted successfully.';
+                    $pdo->commit();
+                    $success = 'Budget deleted successfully.';
                     $submitted = array_merge($submitted, [
                         'budget_id' => '',
                         'project_id' => '',
@@ -363,9 +369,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Select at least one budget to delete.';
             } else {
                 $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+                $pdo->beginTransaction();
+                $deleteItemsStmt = $pdo->prepare("DELETE FROM items WHERE budget_id IN ({$placeholders})");
+                $deleteItemsStmt->execute($selectedIds);
+
                 $stmt = $pdo->prepare("DELETE FROM budgets WHERE budget_id IN ({$placeholders})");
                 $stmt->execute($selectedIds);
                 $deleted = $stmt->rowCount();
+                $pdo->commit();
                 $success = $deleted . ' budget(s) removed.';
             }
         }
