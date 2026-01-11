@@ -138,7 +138,51 @@ function normalize_items_from_request(array $source): array
         ];
     }
 
-    return $items;
+     return $items;
+}
+
+function format_currency_display(?string $currency, ?string $amount): string
+{
+    $cleanCurrency = trim((string) $currency);
+    $cleanAmount = trim((string) $amount);
+
+    if ($cleanCurrency === '' && $cleanAmount === '') {
+        return '—';
+    }
+
+    return trim($cleanCurrency . ' ' . $cleanAmount);
+}
+
+function compute_egp_value(?string $amount, ?string $currency, ?string $rate): ?float
+{
+    $cleanAmount = trim((string) $amount);
+    $cleanCurrency = strtoupper(trim((string) $currency));
+    $cleanRate = trim((string) $rate);
+
+    if ($cleanAmount === '' || !is_numeric($cleanAmount)) {
+        return null;
+    }
+
+    if ($cleanCurrency === '' || $cleanCurrency === 'EGP') {
+        return (float) $cleanAmount;
+    }
+
+    if ($cleanRate === '' || !is_numeric($cleanRate)) {
+        return null;
+    }
+
+    return (float) $cleanAmount * (float) $cleanRate;
+}
+
+function format_egp_amount(?string $amount, ?string $currency, ?string $rate): string
+{
+    $value = compute_egp_value($amount, $currency, $rate);
+
+    if ($value === null) {
+        return '—';
+    }
+
+    return number_format($value, 2, '.', '');
 }
 
 $error = '';
@@ -421,7 +465,7 @@ if ($pdo) {
 
         $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
 
-       $sql = "SELECT b.*, p.project_name, p.business_line_id, bl.business_line_name, sb.sub_batch_name, bat.batch_id, bat.batch_name, bp.project_name AS batch_project_name, bp.business_line_id AS batch_business_line_id, COALESCE(items.item_count, 0) AS item_count FROM budgets b LEFT JOIN projects p ON p.project_id = b.project_id LEFT JOIN sub_batch_details sb ON sb.sub_batch_detail_id = b.sub_batch_detail_id LEFT JOIN batches bat ON bat.batch_id = COALESCE(b.batch_id, sb.batch_id) LEFT JOIN projects bp ON bp.project_id = bat.project_id LEFT JOIN business_lines bl ON bl.business_line_id = COALESCE(p.business_line_id, bp.business_line_id) LEFT JOIN (SELECT budget_id, COUNT(*) AS item_count FROM items GROUP BY budget_id) items ON items.budget_id = b.budget_id {$whereSql} ORDER BY b.created_at DESC, b.budget_id DESC";
+        $sql = "SELECT b.*, p.project_name, p.business_line_id, bl.business_line_name, sb.sub_batch_name, bat.batch_id, bat.batch_name, bp.project_id AS batch_project_id, bp.project_name AS batch_project_name, bp.business_line_id AS batch_business_line_id, COALESCE(items.item_count, 0) AS item_count FROM budgets b LEFT JOIN projects p ON p.project_id = b.project_id LEFT JOIN sub_batch_details sb ON sb.sub_batch_detail_id = b.sub_batch_detail_id LEFT JOIN batches bat ON bat.batch_id = COALESCE(b.batch_id, sb.batch_id) LEFT JOIN projects bp ON bp.project_id = bat.project_id LEFT JOIN business_lines bl ON bl.business_line_id = COALESCE(p.business_line_id, bp.business_line_id) LEFT JOIN (SELECT budget_id, COUNT(*) AS item_count FROM items GROUP BY budget_id) items ON items.budget_id = b.budget_id {$whereSql} ORDER BY b.created_at DESC, b.budget_id DESC";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $budgets = $stmt->fetchAll();
@@ -612,6 +656,18 @@ $subBatchDataForJs = array_map(
     .message-table__wrapper {
       margin-top: 8px;
       overflow-x: auto;
+    }
+
+    .details-summary {
+      margin: 8px 0 0;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--secondary);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      word-break: break-word;
     }
 
     .message-table {
@@ -1024,41 +1080,23 @@ $subBatchDataForJs = array_map(
               $projectName = $budget['project_name'] ?: ($budget['batch_project_name'] ?? '');
               $batchName = $budget['batch_name'] ?? '';
               $subBatchName = $budget['sub_batch_name'] ?? '';
+              $projectId = $budget['project_id'] ?: ($budget['batch_project_id'] ?? '');
+              $summaryDetails = [
+                'Budget ID' => $budget['budget_id'] ?? '—',
+                'Project ID' => $projectId !== '' ? $projectId : '—',
+                'Project' => $projectName ?: '—',
+                'Batch' => $batchName ?: '—',
+                'Sub-batch' => $subBatchName ?: '—',
+                'Scope' => $scope,
+                'Business line' => $budget['business_line_name'] ?? '—',
+                'Created at' => $budget['created_at'] ?? '—',
+              ];
+              $summaryParts = [];
+              foreach ($summaryDetails as $label => $value) {
+                $summaryParts[] = $label . ': ' . safe($value !== '' ? $value : '—');
+              }
             ?>
-            <div class="message-table__wrapper">
-              <table class="message-table details-table">
-                <tbody>
-                  <tr>
-                    <th scope="row">Budget ID</th>
-                    <td><?php echo safe($budget['budget_id']); ?></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Project</th>
-                    <td><?php echo safe($projectName ?: '—'); ?></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Batch</th>
-                    <td><?php echo safe($batchName ?: '—'); ?></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Sub-batch</th>
-                    <td><?php echo safe($subBatchName ?: '—'); ?></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Scope</th>
-                    <td><?php echo safe($scope); ?></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Business line</th>
-                    <td><?php echo safe($budget['business_line_name'] ?? '—'); ?></td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Created at</th>
-                    <td><?php echo safe($budget['created_at'] ?? '—'); ?></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <p class="details-summary"><?php echo implode(' | ', $summaryParts); ?></p>
             <?php $detailsItems = $itemsByBudget[$budget['budget_id']] ?? []; ?>
             <?php if ($detailsItems): ?>
               <h4 style="margin:12px 0 6px;">Items (<?php echo count($detailsItems); ?>)</h4>
@@ -1071,12 +1109,39 @@ $subBatchDataForJs = array_map(
                       <th>Selling price</th>
                       <th>Cost type</th>
                       <th>Revenue</th>
+                      <th>Revenue rate</th>
+                      <th>Revenue (EGP)</th>
                       <th>Freight</th>
+                      <th>Freight rate</th>
+                      <th>Freight (EGP)</th>
                       <th>Supplier</th>
+                      <th>Supplier rate</th>
+                      <th>Supplier (EGP)</th>
+                      <th>Total (EGP)</th>
                     </tr>
                   </thead>
                   <tbody>
                      <?php foreach ($detailsItems as $item): ?>
+                      <?php
+                        $revenueCurrency = $item['revenue_currency'] ?? '';
+                        $revenueAmount = $item['revenue_amount'] ?? '';
+                        $revenueRate = $item['revenue_exchange_rate'] ?? '';
+                        $freightCurrency = $item['freight_currency'] ?? '';
+                        $freightAmount = $item['freight_amount'] ?? '';
+                        $freightRate = $item['freight_exchange_rate'] ?? '';
+                        $supplierCurrency = $item['supplier_cost_currency'] ?? '';
+                        $supplierAmount = $item['supplier_cost_amount'] ?? '';
+                        $supplierRate = $item['supplier_cost_exchange_rate'] ?? '';
+                        $revenueEgpValue = compute_egp_value($revenueAmount, $revenueCurrency, $revenueRate);
+                        $freightEgpValue = compute_egp_value($freightAmount, $freightCurrency, $freightRate);
+                        $supplierEgpValue = compute_egp_value($supplierAmount, $supplierCurrency, $supplierRate);
+                        $totalEgpValue = null;
+                        foreach ([$revenueEgpValue, $freightEgpValue, $supplierEgpValue] as $value) {
+                          if ($value !== null) {
+                            $totalEgpValue = ($totalEgpValue ?? 0) + $value;
+                          }
+                        }
+                      ?>
                       <tr>
                         <td>
                           <div><?php echo safe($item['item_name'] ?? '—'); ?></div>
@@ -1085,9 +1150,16 @@ $subBatchDataForJs = array_map(
                         <td><?php echo safe($item['qty'] ?? '—'); ?></td>
                         <td><?php echo safe($item['selling_price'] ?? '—'); ?></td>
                         <td><?php echo safe($item['costtype'] ?? '—'); ?></td>
-                        <td><?php echo safe(($item['revenue_currency'] ?? '') . ' ' . ($item['revenue_amount'] ?? '')); ?></td>
-                        <td><?php echo safe(($item['freight_currency'] ?? '') . ' ' . ($item['freight_amount'] ?? '')); ?></td>
-                        <td><?php echo safe(($item['supplier_cost_currency'] ?? '') . ' ' . ($item['supplier_cost_amount'] ?? '')); ?></td>
+                        <td><?php echo safe(format_currency_display($revenueCurrency, $revenueAmount)); ?></td>
+                        <td><?php echo safe(strtoupper(trim((string) $revenueCurrency)) === 'EGP' ? '—' : ($revenueRate !== '' ? $revenueRate : '—')); ?></td>
+                        <td><?php echo safe(format_egp_amount($revenueAmount, $revenueCurrency, $revenueRate)); ?></td>
+                        <td><?php echo safe(format_currency_display($freightCurrency, $freightAmount)); ?></td>
+                        <td><?php echo safe(strtoupper(trim((string) $freightCurrency)) === 'EGP' ? '—' : ($freightRate !== '' ? $freightRate : '—')); ?></td>
+                        <td><?php echo safe(format_egp_amount($freightAmount, $freightCurrency, $freightRate)); ?></td>
+                        <td><?php echo safe(format_currency_display($supplierCurrency, $supplierAmount)); ?></td>
+                        <td><?php echo safe(strtoupper(trim((string) $supplierCurrency)) === 'EGP' ? '—' : ($supplierRate !== '' ? $supplierRate : '—')); ?></td>
+                        <td><?php echo safe(format_egp_amount($supplierAmount, $supplierCurrency, $supplierRate)); ?></td>
+                        <td><?php echo $totalEgpValue === null ? '—' : safe(number_format($totalEgpValue, 2, '.', '')); ?></td>
                       </tr>
                     <?php endforeach; ?>
                   </tbody>
